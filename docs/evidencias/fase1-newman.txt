@@ -1,0 +1,22 @@
+Evidencia de validación automatizada Fase 1
+
+Resumen de ejecución:
+
+- requests ejecutados: 24
+- requests fallidos: 0
+- test scripts ejecutados: 24
+- test scripts fallidos: 0
+- assertions ejecutadas: 52
+- assertions fallidas: 0
+- duración total aproximada: 20.1s
+
+Artefactos relacionados:
+
+- colección: docs/fase-1-postman-collection.json
+- environment local: docs/fase1.local.postman_environment.json
+- guía QA: docs/qa-fase1.md
+- reporte HTML local: docs/reports/fase1-report.html
+
+Nota:
+
+El reporte HTML se genera localmente para consulta, pero por política de versionamiento el directorio de reportes queda ignorado en Git.

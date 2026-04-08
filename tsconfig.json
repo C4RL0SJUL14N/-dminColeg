@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "ignoreDeprecations": "6.0",
+    "skipLibCheck": true,
+    "strict": true,
+    "moduleResolution": "node",
+    "paths": {
+      "@libs/common": ["libs/common/src"],
+      "@libs/common/*": ["libs/common/src/*"],
+      "@libs/database": ["libs/database/src"],
+      "@libs/database/*": ["libs/database/src/*"],
+      "@libs/auth": ["libs/auth/src"],
+      "@libs/auth/*": ["libs/auth/src/*"],
+      "@libs/contracts": ["libs/contracts/src"],
+      "@libs/contracts/*": ["libs/contracts/src/*"],
+      "@apps/auth-service/*": ["apps/auth-service/src/*"],
+      "@apps/access-control-service/*": ["apps/access-control-service/src/*"],
+      "@apps/institution-service/*": ["apps/institution-service/src/*"],
+      "@apps/identity-service/*": ["apps/identity-service/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

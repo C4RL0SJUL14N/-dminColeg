@@ -1,0 +1,1170 @@
+{
+  "info": {
+    "name": "AdminColeg Fase 1",
+    "_postman_id": "7f4d2d1a-8d8b-4d3d-9f8f-1b2a3c4d5e6f",
+    "description": "Suite automatizada de validacion Fase 1 para auth, instituciones, personas y access control.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('runSeed')) {",
+          "  pm.collectionVariables.set('runSeed', String(Date.now()));",
+          "}",
+          "if (!pm.collectionVariables.get('baseUrl') && pm.environment.get('baseUrl')) {",
+          "  pm.collectionVariables.set('baseUrl', pm.environment.get('baseUrl'));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "recoveryToken",
+      "value": ""
+    },
+    {
+      "key": "usuarioId",
+      "value": ""
+    },
+    {
+      "key": "institucionId",
+      "value": ""
+    },
+    {
+      "key": "personaId",
+      "value": ""
+    },
+    {
+      "key": "personaNumeroDocumento",
+      "value": ""
+    },
+    {
+      "key": "tipoDocumentoId",
+      "value": ""
+    },
+    {
+      "key": "generoId",
+      "value": ""
+    },
+    {
+      "key": "tipoPerfilId",
+      "value": ""
+    },
+    {
+      "key": "rolId",
+      "value": ""
+    },
+    {
+      "key": "institucionCodigo",
+      "value": ""
+    },
+    {
+      "key": "institucionNombre",
+      "value": ""
+    },
+    {
+      "key": "adminAppTargetUserId",
+      "value": ""
+    },
+    {
+      "key": "institutionalAccessToken",
+      "value": ""
+    },
+    {
+      "key": "foreignInstitutionId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Auth",
+      "item": [
+        {
+          "name": "00.01 Login Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Autentica el superadministrador y captura tokens y contexto.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{adminEmail}}\",\n  \"contrasena\": \"{{adminPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('envelope exitoso', () => {",
+                  "  pm.expect(json).to.have.property('data');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('tokens presentes', () => {",
+                  "  pm.expect(json.data.accessToken).to.be.a('string').and.not.empty;",
+                  "  pm.expect(json.data.refreshToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('contexto de acceso presente', () => {",
+                  "  pm.expect(json.data.contextoAcceso).to.be.an('object');",
+                  "  pm.expect(json.data.contextoAcceso.usuarioId).to.be.a('string');",
+                  "});",
+                  "pm.environment.set('accessToken', json.data.accessToken);",
+                  "pm.environment.set('refreshToken', json.data.refreshToken);",
+                  "pm.environment.set('usuarioId', json.data.contextoAcceso.usuarioId);",
+                  "const primerRol = (json.data.contextoAcceso.roles || [])[0];",
+                  "if (primerRol?.id) pm.environment.set('rolId', primerRol.id);",
+                  "console.log('login refresh token length:', (json.data.refreshToken || '').length);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.02 Refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh",
+            "description": "Renueva access y refresh token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('response body parseable', () => pm.expect(json).to.be.an('object'));",
+                  "pm.test('envelope de refresh presente', () => {",
+                  "  pm.expect(json).to.have.property('data');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('nuevos tokens presentes', () => {",
+                  "  pm.expect(json.data).to.be.an('object');",
+                  "  pm.expect(json.data.accessToken).to.be.a('string').and.not.empty;",
+                  "  pm.expect(json.data.refreshToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "if (json.data && json.data.accessToken) pm.environment.set('accessToken', json.data.accessToken);",
+                  "if (json.data && json.data.refreshToken) pm.environment.set('refreshToken', json.data.refreshToken);",
+                  "console.log('refresh status:', pm.response.code);",
+                  "console.log('refresh body:', pm.response.text());",
+                  "console.log('refreshToken length sent:', (pm.environment.get('refreshToken') || '').length);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.03 Sesiones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/sesiones",
+            "description": "Valida lectura de sesiones del usuario autenticado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope de sesiones', () => {",
+                  "  pm.expect(json).to.have.property('data');",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Catalogos",
+      "item": [
+        {
+          "name": "01.01 Tipos Documento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tipos-documento",
+            "description": "Resuelve automaticamente un tipoDocumentoId para pruebas posteriores."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('catalogo disponible', () => {",
+                  "  pm.expect(json.data).to.be.an('array').and.not.empty;",
+                  "});",
+                  "const first = json.data[0];",
+                  "pm.expect(first.id).to.be.a('string');",
+                  "pm.environment.set('tipoDocumentoId', first.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.02 Generos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/generos",
+            "description": "Resuelve automaticamente un generoId para pruebas posteriores."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('catalogo disponible', () => {",
+                  "  pm.expect(json.data).to.be.an('array').and.not.empty;",
+                  "});",
+                  "const first = json.data[0];",
+                  "pm.expect(first.id).to.be.a('string');",
+                  "pm.environment.set('generoId', first.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Instituciones",
+      "item": [
+        {
+          "name": "02.01 Crear Institucion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones",
+            "description": "Crea una institucion unica por ejecucion y captura institucionId.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{institucionCodigo}}\",\n  \"nombre\": \"{{institucionNombre}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const seed = pm.collectionVariables.get('runSeed');",
+                  "pm.environment.set('institucionCodigo', `I${seed.slice(-9)}`);",
+                  "pm.environment.set('institucionNombre', `Institucion QA ${seed.slice(-6)}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('institucion creada', () => {",
+                  "  pm.expect(json.data).to.be.an('object');",
+                  "  pm.expect(json.data.id).to.be.a('string');",
+                  "  pm.expect(json.data.codigo).to.eql(pm.environment.get('institucionCodigo'));",
+                  "});",
+                  "if (json.data && json.data.id) pm.environment.set('institucionId', json.data.id);",
+                  "console.log('institucion status:', pm.response.code);",
+                  "console.log('institucion body:', pm.response.text());",
+                  "console.log('institucion codigo enviado:', pm.environment.get('institucionCodigo'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.02 Listar Instituciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones",
+            "description": "Lista instituciones y valida que la creada este presente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const targetId = (pm.environment.get('institucionId') || pm.collectionVariables.get('institucionId'));",
+                  "pm.test('institucion creada visible en listado', () => {",
+                  "  pm.expect(json.data.some(item => item.id === targetId)).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.03 Consultar Institucion",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones/{{institucionId}}",
+            "description": "Consulta la institucion creada por id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('institucion consultada coincide', () => {",
+                  "  pm.expect(json.data.id).to.eql((pm.environment.get('institucionId') || pm.collectionVariables.get('institucionId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.04 Actualizar Institucion",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones/{{institucionId}}",
+            "description": "Actualiza nombre de la institucion creada.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{institucionNombre}} Actualizada\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('nombre actualizado', () => {",
+                  "  pm.expect(json.data.nombre).to.eql(`${(pm.environment.get('institucionNombre') || pm.collectionVariables.get('institucionNombre'))} Actualizada`);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Personas",
+      "item": [
+        {
+          "name": "03.01 Crear Persona",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/personas",
+            "description": "Crea una persona de prueba y captura personaId y numeroDocumento.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipoDocumentoId\": \"{{tipoDocumentoId}}\",\n  \"generoId\": \"{{generoId}}\",\n  \"numeroDocumento\": \"{{personaNumeroDocumento}}\",\n  \"primerNombre\": \"Persona\",\n  \"segundoNombre\": \"Demo\",\n  \"primerApellido\": \"Prueba\",\n  \"segundoApellido\": \"QA\",\n  \"correoElectronico\": \"persona.{{runSeed}}@example.com\",\n  \"telefono\": \"3000000000\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const seed = pm.collectionVariables.get('runSeed');",
+                  "pm.environment.set('personaNumeroDocumento', `9${seed.slice(-8)}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('persona creada', () => {",
+                  "  pm.expect(json.data.id).to.be.a('string');",
+                  "  pm.expect(json.data.numeroDocumento).to.eql((pm.environment.get('personaNumeroDocumento') || pm.collectionVariables.get('personaNumeroDocumento')));",
+                  "});",
+                  "pm.environment.set('personaId', json.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.02 Consultar Persona",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/personas/{{personaId}}",
+            "description": "Consulta la persona creada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('persona consultada coincide', () => {",
+                  "  pm.expect(json.data.id).to.eql((pm.environment.get('personaId') || pm.collectionVariables.get('personaId')));",
+                  "  pm.expect(json.data.tipoDocumento).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.03 Actualizar Persona",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/personas/{{personaId}}",
+            "description": "Actualiza campos basicos de la persona.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"segundoNombre\": \"Actualizada\",\n  \"telefono\": \"3111111111\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('persona actualizada', () => {",
+                  "  pm.expect(json.data.segundoNombre).to.eql('Actualizada');",
+                  "  pm.expect(json.data.telefono).to.eql('3111111111');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.04 Buscar Persona Por Documento",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/personas/buscar-por-documento?tipoDocumentoId={{tipoDocumentoId}}&numeroDocumento={{personaNumeroDocumento}}",
+            "description": "Busca la persona creada por tipo de documento y numero."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('persona encontrada por documento', () => {",
+                  "  pm.expect(json.data.id).to.eql((pm.environment.get('personaId') || pm.collectionVariables.get('personaId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Access Control",
+      "item": [
+        {
+          "name": "04.01 Contexto De Acceso",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/usuarios/{{usuarioId}}/contexto-acceso",
+            "description": "Consulta contexto de acceso y resuelve ids actuales de rol y perfil."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('contexto tiene perfiles y roles', () => {",
+                  "  pm.expect(json.data).to.have.property('perfiles');",
+                  "  pm.expect(json.data).to.have.property('roles');",
+                  "});",
+                  "const perfil = (json.data.perfiles || [])[0];",
+                  "const rol = (json.data.roles || [])[0];",
+                  "if (perfil?.tipoPerfilId) pm.environment.set('tipoPerfilId', perfil.tipoPerfilId);",
+                  "if (rol?.id) pm.environment.set('rolId', rol.id);",
+                  "console.log('tipoPerfilId resolved:', perfil ? perfil.tipoPerfilId : null);",
+                  "console.log('rolId resolved:', rol ? rol.id : null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.02 Permisos Efectivos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/usuarios/{{usuarioId}}/permisos-efectivos",
+            "description": "Consulta permisos efectivos del usuario autenticado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('respuesta de permisos valida', () => {",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.03 Asignar Perfil",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/usuarios/{{usuarioId}}/perfiles",
+            "description": "Valida asignacion idempotente usando el tipoPerfilId real resuelto desde contexto-acceso.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipoPerfilId\": \"{{tipoPerfilId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('perfil asignado o reactivado', () => {",
+                  "  pm.expect(json.data).to.be.an('object');",
+                  "  pm.expect(json.data.tipoPerfilId).to.eql(pm.environment.get('tipoPerfilId'));",
+                  "});",
+                  "console.log('asignar perfil status:', pm.response.code);",
+                  "console.log('asignar perfil body:', pm.response.text());",
+                  "console.log('tipoPerfilId enviado:', pm.environment.get('tipoPerfilId'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.04 Asignar Rol",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/usuarios/{{usuarioId}}/roles",
+            "description": "Valida asignacion idempotente usando el rol actual del superadministrador. Limitacion: no existe endpoint para listar roles arbitrarios.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rolId\": \"{{rolId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('rol asignado', () => {",
+                  "  pm.expect(json.data.rolId).to.eql((pm.environment.get('rolId') || pm.collectionVariables.get('rolId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.05 Asignar Administrador App Opcional",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones/{{institucionId}}/administradores-app",
+            "description": "Cobertura opcional. Requiere un usuario institucional semilla en adminAppTargetUserId porque la API de Fase 1 no crea usuarios institucionales.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuarioId\": \"{{adminAppTargetUserId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const runOptional = (pm.environment.get('runOptionalAdminApp') || 'false').toLowerCase() === 'true';",
+                  "const target = pm.environment.get('adminAppTargetUserId') || pm.collectionVariables.get('adminAppTargetUserId');",
+                  "if (!runOptional || !target) {",
+                  "  console.log('Skipping optional admin app assignment');",
+                  "  pm.environment.set('skipCurrentRequest', '04.05');",
+                  "  if (pm.execution && typeof pm.execution.skipRequest === 'function') {",
+                  "    pm.execution.skipRequest();",
+                  "  }",
+                  "} else {",
+                  "  pm.environment.unset('skipCurrentRequest');",
+                  "  pm.environment.set('adminAppTargetUserId', target);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('skipCurrentRequest') === '04.05') {",
+                  "  pm.test('optional admin app request skipped', () => pm.expect(true).to.eql(true));",
+                  "  pm.environment.unset('skipCurrentRequest');",
+                  "} else {",
+                  "  let json = {};",
+                  "  try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "  pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "  pm.test('rol administrador institucional visible en contexto', () => {",
+                  "    pm.expect(json.data).to.be.an('object');",
+                  "    pm.expect(json.data.roles.some(r => r.codigo === 'administrador_app_institucion')).to.eql(true);",
+                  "  });",
+                  "  console.log('admin app status:', pm.response.code);",
+                  "  console.log('admin app body:', pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "90 Pruebas Negativas",
+      "item": [
+        {
+          "name": "90.01 Login Invalido -> 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Debe rechazar contrasena invalida.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{adminEmail}}\",\n  \"contrasena\": \"incorrecta123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error consistente', () => {",
+                  "  pm.expect(json).to.have.property('statusCode', 401);",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "  pm.expect(json).to.have.property('path');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "90.02 Endpoint protegido sin token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/instituciones",
+            "description": "Debe rechazar acceso sin token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error de autenticacion', () => {",
+                  "  pm.expect(json.statusCode).to.eql(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "90.03 UUID Invalido -> 400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones/no-es-uuid",
+            "description": "Debe validar UUID invalido en params."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error de validacion', () => {",
+                  "  pm.expect(json.statusCode).to.eql(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "90.04 Body con propiedad no permitida -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/personas",
+            "description": "Debe rechazar propiedades fuera del DTO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipoDocumentoId\": \"{{tipoDocumentoId}}\",\n  \"generoId\": \"{{generoId}}\",\n  \"numeroDocumento\": \"99{{runSeed}}\",\n  \"primerNombre\": \"Body\",\n  \"primerApellido\": \"Invalido\",\n  \"propiedadNoPermitida\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error por propiedad no permitida', () => {",
+                  "  pm.expect(String(JSON.stringify(json.error))).to.include('property propiedadNoPermitida should not exist');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "90.05 Crear Institucion Sin Rol Suficiente -> 403 Opcional",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{institutionalAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones",
+            "description": "Cobertura opcional. Requiere institutionalAccessToken de un usuario que no sea superadministrador.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"neg-{{runSeed}}\",\n  \"nombre\": \"Intento Sin Rol\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const runOptional = (pm.environment.get('runOptionalInstitutionalNegatives') || 'false').toLowerCase() === 'true';",
+                  "const token = pm.environment.get('institutionalAccessToken') || pm.collectionVariables.get('institutionalAccessToken');",
+                  "if (!runOptional || !token) {",
+                  "  console.log('Skipping optional institutional 403 negative');",
+                  "  pm.environment.set('skipCurrentRequest', '90.05');",
+                  "  if (pm.execution && typeof pm.execution.skipRequest === 'function') {",
+                  "    pm.execution.skipRequest();",
+                  "  }",
+                  "} else {",
+                  "  pm.environment.unset('skipCurrentRequest');",
+                  "  pm.environment.set('institutionalAccessToken', token);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('skipCurrentRequest') === '90.05') {",
+                  "  pm.test('optional institutional 403 request skipped', () => pm.expect(true).to.eql(true));",
+                  "  pm.environment.unset('skipCurrentRequest');",
+                  "} else {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "  pm.test('forbidden correcto', () => {",
+                  "    pm.expect(json.statusCode).to.eql(403);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "90.06 Acceso A Recurso De Otra Institucion -> 403 Opcional",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{institutionalAccessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/instituciones/{{foreignInstitutionId}}",
+            "description": "Cobertura opcional. Requiere institutionalAccessToken y foreignInstitutionId de otra institucion."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const runOptional = (pm.environment.get('runOptionalInstitutionalNegatives') || 'false').toLowerCase() === 'true';",
+                  "const token = pm.environment.get('institutionalAccessToken') || pm.collectionVariables.get('institutionalAccessToken');",
+                  "const foreignId = pm.environment.get('foreignInstitutionId') || pm.collectionVariables.get('foreignInstitutionId');",
+                  "if (!runOptional || !token || !foreignId) {",
+                  "  console.log('Skipping optional cross-tenant 403 negative');",
+                  "  pm.environment.set('skipCurrentRequest', '90.06');",
+                  "  if (pm.execution && typeof pm.execution.skipRequest === 'function') {",
+                  "    pm.execution.skipRequest();",
+                  "  }",
+                  "} else {",
+                  "  pm.environment.unset('skipCurrentRequest');",
+                  "  pm.environment.set('institutionalAccessToken', token);",
+                  "  pm.environment.set('foreignInstitutionId', foreignId);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('skipCurrentRequest') === '90.06') {",
+                  "  pm.test('optional cross-tenant 403 request skipped', () => pm.expect(true).to.eql(true));",
+                  "  pm.environment.unset('skipCurrentRequest');",
+                  "} else {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "  pm.test('forbidden de otra institucion', () => {",
+                  "    pm.expect(json.statusCode).to.eql(403);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "98 Recuperacion",
+      "item": [
+        {
+          "name": "98.01 Solicitar Recuperacion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/solicitar-recuperacion",
+            "description": "Solicita recuperacion y captura tokenDesarrollo para entorno local.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{adminEmail}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('solicitud de recuperacion exitosa', () => {",
+                  "  pm.expect(json.data.solicitado).to.eql(true);",
+                  "  pm.expect(json.data.tokenDesarrollo).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.environment.set('recoveryToken', json.data.tokenDesarrollo);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "98.02 Restablecer Contrasena",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/restablecer-contrasena",
+            "description": "Restablece a la misma contrasena configurada en adminPassword para no alterar el entorno.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{recoveryToken}}\",\n  \"nuevaContrasena\": \"{{adminPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('contrasena restablecida', () => {",
+                  "  pm.expect(json.data.restablecida).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "99 Cleanup",
+      "item": [
+        {
+          "name": "99.01 Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/logout",
+            "description": "Revoca la sesion al final de la suite.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status 200 o 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('logout exitoso', () => {",
+                  "  pm.expect(json.data.cerrado).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
