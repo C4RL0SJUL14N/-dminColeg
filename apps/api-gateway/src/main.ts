@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { configureAuditApplication } from '@libs/audit';
 import { configureApplication } from '@libs/common';
 import { ApiGatewayModule } from './api-gateway.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
+  configureAuditApplication(app);
   configureApplication(app, {
     appName: 'API Gateway',
     appDescription:

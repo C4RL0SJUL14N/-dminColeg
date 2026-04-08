@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Audit, AUDIT_EVENT_TYPE, AUDIT_SEVERITY } from '@libs/audit';
 import {
   CurrentUser,
   InstitutionScoped,
@@ -26,6 +27,16 @@ export class InstitutionController {
 
   @Roles(ROLE_SUPERADMIN)
   @Post('instituciones')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'institucion',
+    accion: 'crear-institucion',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarPayload: true,
+    capturarDespues: true,
+  })
   createInstitucion(
     @Body() dto: CrearInstitucionDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -46,6 +57,18 @@ export class InstitutionController {
 
   @InstitutionScoped({ param: 'id' })
   @Patch('instituciones/:id')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'institucion',
+    entidadIdParam: 'id',
+    accion: 'actualizar-institucion',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarPayload: true,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
   updateInstitucion(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ActualizarInstitucionDto,
@@ -55,6 +78,17 @@ export class InstitutionController {
 
   @InstitutionScoped({ param: 'id' })
   @Post('instituciones/:id/sedes')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'sede',
+    entidadIdParam: 'id',
+    accion: 'crear-sede',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.INFO,
+    capturarPayload: true,
+    capturarDespues: true,
+  })
   createSede(@Param('id', new ParseUUIDPipe()) institucionId: string, @Body() dto: CrearSedeDto) {
     return this.institutionService.createSede(institucionId, dto);
   }
@@ -67,6 +101,17 @@ export class InstitutionController {
 
   @InstitutionScoped({ param: 'id' })
   @Post('instituciones/:id/anios-lectivos')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'anio-lectivo',
+    entidadIdParam: 'id',
+    accion: 'crear-anio-lectivo',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.INFO,
+    capturarPayload: true,
+    capturarDespues: true,
+  })
   createAnioLectivo(
     @Param('id', new ParseUUIDPipe()) institucionId: string,
     @Body() dto: CrearAnioLectivoDto,
@@ -81,6 +126,17 @@ export class InstitutionController {
   }
 
   @Post('anios-lectivos/:id/periodos')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'periodo-academico',
+    entidadIdParam: 'id',
+    accion: 'crear-periodo',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.INFO,
+    capturarPayload: true,
+    capturarDespues: true,
+  })
   createPeriodo(
     @Param('id', new ParseUUIDPipe()) anioLectivoId: string,
     @Body() dto: CrearPeriodoAcademicoDto,
@@ -98,6 +154,17 @@ export class InstitutionController {
   }
 
   @Post('periodos/:id/cerrar')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'periodo-academico',
+    entidadIdParam: 'id',
+    accion: 'cerrar-periodo',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
   cerrarPeriodo(
     @Param('id', new ParseUUIDPipe()) periodoId: string,
     @CurrentUser() currentUser: JwtPayload,
@@ -107,6 +174,18 @@ export class InstitutionController {
 
   @InstitutionScoped({ param: 'id' })
   @Put('instituciones/:id/configuracion')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'configuracion-institucion',
+    entidadIdParam: 'id',
+    accion: 'actualizar-configuracion-institucional',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarPayload: true,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
   upsertConfiguracion(
     @Param('id', new ParseUUIDPipe()) institucionId: string,
     @Body() dto: ConfiguracionInstitucionDto,

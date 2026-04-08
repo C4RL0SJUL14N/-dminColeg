@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { setAuditAfterState, setAuditEntityId } from '@libs/audit';
 import {
   PERFILES_ADMINISTRABLES,
   ROLE_ADMIN_APP,
@@ -46,6 +47,7 @@ export class AccessControlService {
   ) {}
 
   async getContextoAcceso(usuarioId: string) {
+    setAuditEntityId(usuarioId);
     const usuario = await this.usuariosRepository.findOneBy({ id: usuarioId });
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
@@ -86,6 +88,7 @@ export class AccessControlService {
   }
 
   async getPermisosEfectivos(usuarioId: string) {
+    setAuditEntityId(usuarioId);
     const usuario = await this.usuariosRepository.findOneBy({ id: usuarioId });
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
@@ -121,6 +124,7 @@ export class AccessControlService {
   }
 
   async asignarPerfil(usuarioId: string, dto: AsignarPerfilDto) {
+    setAuditEntityId(usuarioId);
     await this.ensureUsuario(usuarioId);
     const tipoPerfil = await this.tiposPerfilRepository.findOneBy({ id: dto.tipoPerfilId });
     if (!tipoPerfil) {
@@ -132,10 +136,12 @@ export class AccessControlService {
     });
     if (existente) {
       existente.activo = true;
-      return this.perfilesRepository.save(existente);
+      const perfil = await this.perfilesRepository.save(existente);
+      setAuditAfterState(perfil);
+      return perfil;
     }
 
-    return this.perfilesRepository.save(
+    const perfil = await this.perfilesRepository.save(
       this.perfilesRepository.create({
         usuarioId,
         tipoPerfilId: dto.tipoPerfilId,
@@ -145,9 +151,12 @@ export class AccessControlService {
         asignadoPorUsuarioId: null,
       }),
     );
+    setAuditAfterState(perfil);
+    return perfil;
   }
 
   async asignarRol(usuarioId: string, dto: AsignarRolDto) {
+    setAuditEntityId(usuarioId);
     const usuario = await this.ensureUsuario(usuarioId);
     const rol = await this.rolesRepository.findOneBy({ id: dto.rolId, activo: true });
     if (!rol) {
@@ -162,10 +171,12 @@ export class AccessControlService {
       where: { usuarioId, rolId: dto.rolId },
     });
     if (existente) {
-      return this.rolesUsuarioRepository.save(existente);
+      const rolAsignado = await this.rolesUsuarioRepository.save(existente);
+      setAuditAfterState(rolAsignado);
+      return rolAsignado;
     }
 
-    return this.rolesUsuarioRepository.save(
+    const rolAsignado = await this.rolesUsuarioRepository.save(
       this.rolesUsuarioRepository.create({
         usuarioId,
         rolId: dto.rolId,
@@ -173,9 +184,12 @@ export class AccessControlService {
         asignadoPorUsuarioId: null,
       }),
     );
+    setAuditAfterState(rolAsignado);
+    return rolAsignado;
   }
 
   async asignarAdministradorApp(institucionId: string, dto: AsignarAdministradorAppDto) {
+    setAuditEntityId(institucionId);
     const usuario = await this.ensureUsuario(dto.usuarioId);
     if (usuario.institucionId !== institucionId) {
       throw new ForbiddenException(
@@ -224,7 +238,9 @@ export class AccessControlService {
       );
     }
 
-    return this.getContextoAcceso(usuario.id);
+    const contexto = await this.getContextoAcceso(usuario.id);
+    setAuditAfterState(contexto);
+    return contexto;
   }
 
   private async ensureUsuario(usuarioId: string) {

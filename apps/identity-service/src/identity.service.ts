@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
+import { setAuditAfterState, setAuditBeforeState, setAuditEntityId } from '@libs/audit';
 import { Genero, Persona, TipoDocumento } from '@libs/database';
 import { ActualizarPersonaDto, CrearPersonaDto } from './dto';
 
@@ -31,7 +32,7 @@ export class IdentityService {
       throw new ConflictException('La persona ya existe con ese documento');
     }
 
-    return this.personasRepository.save(
+    const persona = await this.personasRepository.save(
       this.personasRepository.create({
         codigo: dto.numeroDocumento || randomUUID().slice(0, 12),
         tipoDocumentoId: dto.tipoDocumentoId,
@@ -49,6 +50,9 @@ export class IdentityService {
         version: 1,
       }),
     );
+    setAuditEntityId(persona.id);
+    setAuditAfterState(persona);
+    return persona;
   }
 
   async getPersonaById(id: string) {
@@ -65,6 +69,8 @@ export class IdentityService {
 
   async updatePersona(id: string, dto: ActualizarPersonaDto) {
     const persona = await this.getPersonaById(id);
+    setAuditEntityId(id);
+    setAuditBeforeState(persona);
     Object.assign(persona, {
       generoId: dto.generoId ?? persona.generoId,
       primerNombre: dto.primerNombre ?? persona.primerNombre,
@@ -75,10 +81,13 @@ export class IdentityService {
       telefono: dto.telefono ?? persona.telefono,
     });
 
-    return this.personasRepository.save(persona);
+    const updated = await this.personasRepository.save(persona);
+    setAuditAfterState(updated);
+    return updated;
   }
 
   async buscarPorDocumento(tipoDocumentoId: string, numeroDocumento: string) {
+    setAuditBeforeState({ tipoDocumentoId, numeroDocumento });
     const persona = await this.personasRepository.findOne({
       where: { tipoDocumentoId, numeroDocumento },
       relations: { tipoDocumento: true, genero: true },
@@ -87,6 +96,12 @@ export class IdentityService {
       throw new NotFoundException('No existe persona con el documento consultado');
     }
 
+    setAuditEntityId(persona.id);
+    setAuditAfterState({
+      personaId: persona.id,
+      tipoDocumentoId,
+      numeroDocumento,
+    });
     return persona;
   }
 

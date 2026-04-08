@@ -20,6 +20,7 @@
     "start:dev:access-control-service": "nest start access-control-service --watch",
     "start:dev:institution-service": "nest start institution-service --watch",
     "start:dev:identity-service": "nest start identity-service --watch",
+    "test:audit": "ts-node -r tsconfig-paths/register tests/run-audit-tests.ts",
     "test:fase1": "newman run docs/fase-1-postman-collection.json -e docs/fase1.local.postman_environment.json --reporters cli --timeout-request 15000 --timeout 180000 --bail",
     "test:fase1:html": "newman run docs/fase-1-postman-collection.json -e docs/fase1.local.postman_environment.json --reporters cli,htmlextra --reporter-htmlextra-export docs/reports/fase1-report.html --timeout-request 15000 --timeout 180000 --bail",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",

@@ -8,6 +8,12 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
+import {
+  AUDIT_METADATA_KEY,
+  AUDIT_RESULT,
+  AuditOptions,
+  AuditService,
+} from '@libs/audit';
 import { PUBLIC_ROUTE_KEY } from '../constants/auth.constants';
 import { JwtPayload } from '../types/jwt-payload.type';
 
@@ -17,9 +23,10 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly auditService: AuditService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(
       PUBLIC_ROUTE_KEY,
       [context.getHandler(), context.getClass()],
@@ -36,6 +43,7 @@ export class JwtAuthGuard implements CanActivate {
       : undefined;
 
     if (!token) {
+      await this.logDeniedAudit(context, request, new UnauthorizedException('Token JWT requerido'));
       throw new UnauthorizedException('Token JWT requerido');
     }
 
@@ -46,8 +54,35 @@ export class JwtAuthGuard implements CanActivate {
       request.user = payload;
       return true;
     } catch {
+      await this.logDeniedAudit(
+        context,
+        request,
+        new UnauthorizedException('Token JWT invalido o expirado'),
+      );
       throw new UnauthorizedException('Token JWT invalido o expirado');
     }
   }
-}
 
+  private async logDeniedAudit(
+    context: ExecutionContext,
+    request: Request & { user?: JwtPayload },
+    error: UnauthorizedException,
+  ): Promise<void> {
+    const options = this.reflector.getAllAndOverride<AuditOptions>(AUDIT_METADATA_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (!options) {
+      return;
+    }
+
+    await this.auditService.registerHttpEvent({
+      options,
+      request,
+      error,
+      result: AUDIT_RESULT.FALLO,
+      statusCode: error.getStatus(),
+    });
+  }
+}

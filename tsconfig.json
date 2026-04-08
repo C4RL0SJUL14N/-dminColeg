@@ -22,6 +22,8 @@
       "@libs/database/*": ["libs/database/src/*"],
       "@libs/auth": ["libs/auth/src"],
       "@libs/auth/*": ["libs/auth/src/*"],
+      "@libs/audit": ["libs/audit/src"],
+      "@libs/audit/*": ["libs/audit/src/*"],
       "@libs/contracts": ["libs/contracts/src"],
       "@libs/contracts/*": ["libs/contracts/src/*"],
       "@apps/auth-service/*": ["apps/auth-service/src/*"],

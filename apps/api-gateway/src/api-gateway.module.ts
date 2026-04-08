@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AuthSupportModule } from '@libs/auth';
+import { AuditModule } from '@libs/audit';
 import {
   InstitutionContextGuard,
   JwtAuthGuard,
@@ -18,6 +19,7 @@ import { InstitutionServiceModule } from '@apps/institution-service/institution-
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env.local', '.env'] }),
     DatabaseModule.forRoot(),
     AuthSupportModule,
+    AuditModule.forRoot({ exposeController: true }),
     AuthServiceModule,
     AccessControlServiceModule,
     InstitutionServiceModule,

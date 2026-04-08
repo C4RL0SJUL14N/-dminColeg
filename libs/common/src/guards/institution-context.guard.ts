@@ -5,15 +5,25 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import {
+  AUDIT_METADATA_KEY,
+  AUDIT_RESULT,
+  AuditRequest,
+  AuditOptions,
+  AuditService,
+} from '@libs/audit';
 import { INSTITUTION_SCOPE_KEY } from '../constants/auth.constants';
 import { JwtPayload } from '../types/jwt-payload.type';
 import { InstitutionScopeOptions } from '../decorators/institution-scoped.decorator';
 
 @Injectable()
 export class InstitutionContextGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly auditService: AuditService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const options = this.reflector.getAllAndOverride<InstitutionScopeOptions>(
       INSTITUTION_SCOPE_KEY,
       [context.getHandler(), context.getClass()],
@@ -23,12 +33,14 @@ export class InstitutionContextGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<{
-      user?: JwtPayload;
-      params: Record<string, string>;
-      query: Record<string, string>;
-      body?: Record<string, unknown>;
-    }>();
+    const request = context.switchToHttp().getRequest<
+      AuditRequest & {
+        user?: JwtPayload;
+        params: Record<string, string>;
+        query: Record<string, string>;
+        body?: Record<string, unknown>;
+      }
+    >();
     const user = request.user;
 
     if (!user || user.superadministrador) {
@@ -45,6 +57,13 @@ export class InstitutionContextGuard implements CanActivate {
     }
 
     if (scopedInstitutionId !== user.institucionId) {
+      await this.logDeniedAudit(
+        context,
+        request,
+        new ForbiddenException(
+          'No puede operar fuera de la institucion asociada a su usuario',
+        ),
+      );
       throw new ForbiddenException(
         'No puede operar fuera de la institucion asociada a su usuario',
       );
@@ -52,5 +71,32 @@ export class InstitutionContextGuard implements CanActivate {
 
     return true;
   }
-}
 
+  private async logDeniedAudit(
+    context: ExecutionContext,
+    request: AuditRequest & {
+      user?: JwtPayload;
+      params: Record<string, string>;
+      query: Record<string, string>;
+      body?: Record<string, unknown>;
+    },
+    error: ForbiddenException,
+  ): Promise<void> {
+    const options = this.reflector.getAllAndOverride<AuditOptions>(AUDIT_METADATA_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (!options) {
+      return;
+    }
+
+    await this.auditService.registerHttpEvent({
+      options,
+      request,
+      error,
+      result: AUDIT_RESULT.DENEGADO,
+      statusCode: error.getStatus(),
+    });
+  }
+}

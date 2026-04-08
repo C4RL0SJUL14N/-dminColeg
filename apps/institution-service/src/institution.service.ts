@@ -6,6 +6,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
+import {
+  setAuditAfterState,
+  setAuditBeforeState,
+  setAuditEntityId,
+} from '@libs/audit';
 import { JwtPayload } from '@libs/common';
 import {
   AnioLectivo,
@@ -50,7 +55,7 @@ export class InstitutionService {
       throw new ForbiddenException('Solo el superadministrador puede crear instituciones');
     }
 
-    return this.institucionesRepository.save(
+    const institucion = await this.institucionesRepository.save(
       this.institucionesRepository.create({
         codigo: dto.codigo,
         nombre: dto.nombre,
@@ -59,6 +64,9 @@ export class InstitutionService {
         version: 1,
       }),
     );
+    setAuditEntityId(institucion.id);
+    setAuditAfterState(institucion);
+    return institucion;
   }
 
   findInstituciones(currentUser: JwtPayload) {
@@ -83,13 +91,17 @@ export class InstitutionService {
 
   async updateInstitucion(id: string, dto: ActualizarInstitucionDto) {
     const institucion = await this.findInstitucionById(id);
+    setAuditEntityId(id);
+    setAuditBeforeState(institucion);
     Object.assign(institucion, dto);
-    return this.institucionesRepository.save(institucion);
+    const updated = await this.institucionesRepository.save(institucion);
+    setAuditAfterState(updated);
+    return updated;
   }
 
   async createSede(institucionId: string, dto: CrearSedeDto) {
     await this.findInstitucionById(institucionId);
-    return this.sedesRepository.save(
+    const sede = await this.sedesRepository.save(
       this.sedesRepository.create({
         institucionId,
         codigo: dto.codigo,
@@ -99,6 +111,9 @@ export class InstitutionService {
         version: 1,
       }),
     );
+    setAuditEntityId(sede.id);
+    setAuditAfterState(sede);
+    return sede;
   }
 
   findSedes(institucionId: string) {
@@ -110,7 +125,7 @@ export class InstitutionService {
 
   async createAnioLectivo(institucionId: string, dto: CrearAnioLectivoDto) {
     await this.findInstitucionById(institucionId);
-    return this.aniosLectivosRepository.save(
+    const anio = await this.aniosLectivosRepository.save(
       this.aniosLectivosRepository.create({
         codigo: randomUUID().slice(0, 8),
         institucionId,
@@ -123,6 +138,9 @@ export class InstitutionService {
         version: 1,
       }),
     );
+    setAuditEntityId(anio.id);
+    setAuditAfterState(anio);
+    return anio;
   }
 
   findAniosLectivos(institucionId: string) {
@@ -138,7 +156,7 @@ export class InstitutionService {
     currentUser: JwtPayload,
   ) {
     await this.findAnioLectivoById(anioLectivoId, currentUser);
-    return this.periodosRepository.save(
+    const periodo = await this.periodosRepository.save(
       this.periodosRepository.create({
         codigo: randomUUID().slice(0, 8),
         anioLectivoId,
@@ -153,6 +171,9 @@ export class InstitutionService {
         version: 1,
       }),
     );
+    setAuditEntityId(periodo.id);
+    setAuditAfterState(periodo);
+    return periodo;
   }
 
   async findPeriodos(anioLectivoId: string, currentUser: JwtPayload) {
@@ -165,9 +186,13 @@ export class InstitutionService {
 
   async cerrarPeriodo(periodoId: string, currentUser: JwtPayload) {
     const periodo = await this.findPeriodoById(periodoId, currentUser);
+    setAuditEntityId(periodo.id);
+    setAuditBeforeState({ ...periodo });
 
     periodo.estado = 'cerrado';
-    return this.periodosRepository.save(periodo);
+    const updated = await this.periodosRepository.save(periodo);
+    setAuditAfterState(updated);
+    return updated;
   }
 
   async upsertConfiguracion(
@@ -175,11 +200,13 @@ export class InstitutionService {
     dto: ConfiguracionInstitucionDto,
   ) {
     await this.findInstitucionById(institucionId);
+    setAuditEntityId(institucionId);
     const existente = await this.configuracionesRepository.findOne({
       where: { institucionId },
     });
 
     if (existente) {
+      setAuditBeforeState(existente);
       existente.modeloPedagogico =
         (dto.configuracion?.modeloPedagogico as string | undefined) ??
         dto.idioma ??
@@ -191,10 +218,12 @@ export class InstitutionService {
       existente.tipoEscalaValoracion =
         (dto.configuracion?.tipoEscalaValoracion as string | undefined) ??
         existente.tipoEscalaValoracion;
-      return this.configuracionesRepository.save(existente);
+      const updated = await this.configuracionesRepository.save(existente);
+      setAuditAfterState(updated);
+      return updated;
     }
 
-    return this.configuracionesRepository.save(
+    const created = await this.configuracionesRepository.save(
       this.configuracionesRepository.create({
         institucionId,
         logoUrl: null,
@@ -210,6 +239,8 @@ export class InstitutionService {
         version: 1,
       }),
     );
+    setAuditAfterState(created);
+    return created;
   }
 
   async getConfiguracion(institucionId: string) {

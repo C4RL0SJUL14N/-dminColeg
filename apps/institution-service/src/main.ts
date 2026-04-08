@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { configureAuditApplication } from '@libs/audit';
 import { configureApplication } from '@libs/common';
 import { InstitutionAppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(InstitutionAppModule);
+  configureAuditApplication(app);
   configureApplication(app, {
     appName: 'Institution Service',
     appDescription: 'Instituciones, sedes, anios lectivos y configuracion',

@@ -11,6 +11,7 @@ import { createHash, randomUUID } from 'crypto';
 import { Request } from 'express';
 import { Repository } from 'typeorm';
 import { PasswordService, TokenService } from '@libs/auth';
+import { mergeAuditMetadata, setAuditAfterState, setAuditEntityId } from '@libs/audit';
 import { JwtPayload } from '@libs/common';
 import {
   MetodoAutenticacionUsuario,
@@ -66,6 +67,8 @@ export class AuthService {
 
   async login(dto: LoginDto, request: Request) {
     const usuario = await this.resolveUsuarioParaLogin(dto.correo, dto.institucionId);
+    setAuditEntityId(usuario.id);
+    mergeAuditMetadata({ correo: dto.correo });
     if (usuario.bloqueadoHasta && usuario.bloqueadoHasta > new Date()) {
       throw new ForbiddenException('Usuario temporalmente bloqueado por intentos fallidos');
     }
@@ -96,6 +99,11 @@ export class AuthService {
     );
 
     if (usuario.debeCambiarContrasena) {
+      setAuditAfterState({
+        requiereCambioContrasena: true,
+        usuarioId: usuario.id,
+        institucionId: usuario.institucionId,
+      });
       return {
         requiereCambioContrasena: true,
         usuarioId: usuario.id,
@@ -105,6 +113,11 @@ export class AuthService {
     }
 
     if (!perfilSeleccionado && contexto.perfiles.length > 1) {
+      setAuditAfterState({
+        requiereSeleccionPerfil: true,
+        usuarioId: usuario.id,
+        perfilesDisponibles: contexto.perfiles.length,
+      });
       return {
         requiereSeleccionPerfil: true,
         perfilesDisponibles: contexto.perfiles,
@@ -117,6 +130,7 @@ export class AuthService {
 
   async refresh(dto: RefreshTokenDto, request: Request) {
     const payload = await this.tokenService.verifyRefreshToken(dto.refreshToken);
+    setAuditEntityId(payload.usuarioId);
     const sesion = await this.sesionesRepository.findOne({
       where: { id: payload.sessionId, usuarioId: payload.usuarioId },
     });
@@ -135,6 +149,8 @@ export class AuthService {
   }
 
   async logout(currentUser: JwtPayload, dto: LogoutDto) {
+    setAuditEntityId(currentUser.usuarioId);
+    mergeAuditMetadata({ sessionId: currentUser.sessionId, tieneRefreshToken: Boolean(dto.refreshToken) });
     const sessionId = currentUser.sessionId;
     const sesion = await this.sesionesRepository.findOne({
       where: { id: sessionId, usuarioId: currentUser.usuarioId },
@@ -145,11 +161,13 @@ export class AuthService {
       await this.sesionesRepository.save(sesion);
     }
 
+    setAuditAfterState({ cerrado: true, sessionId });
     return { cerrado: true };
   }
 
   async solicitarRecuperacion(dto: SolicitarRecuperacionDto) {
     const usuario = await this.resolveUsuarioParaLogin(dto.correo, dto.institucionId);
+    setAuditEntityId(usuario.id);
     const tokenPlano = randomUUID();
     const tokenHash = await this.passwordService.hash(tokenPlano);
     const ttlMinutes = Number(this.configService.get('PASSWORD_RESET_TTL_MINUTES', '30'));
@@ -162,6 +180,7 @@ export class AuthService {
       }),
     );
 
+    setAuditAfterState({ solicitado: true, usuarioId: usuario.id });
     return {
       solicitado: true,
       mensaje:
@@ -183,6 +202,7 @@ export class AuthService {
     }
 
     const usuario = await this.usuariosRepository.findOneByOrFail({ id: tokenEntity.usuarioId });
+    setAuditEntityId(usuario.id);
     usuario.hashContrasena = await this.passwordService.hash(dto.nuevaContrasena);
     usuario.intentosFallidosInicio = 0;
     usuario.bloqueadoHasta = null;
@@ -193,11 +213,13 @@ export class AuthService {
     tokenEntity.usadoAt = new Date();
     await this.tokensRecuperacionRepository.save(tokenEntity);
 
+    setAuditAfterState({ restablecida: true, usuarioId: usuario.id });
     return { restablecida: true };
   }
 
   async cambiarContrasenaInicial(dto: CambiarContrasenaInicialDto, request: Request) {
     const usuario = await this.resolveUsuarioParaLogin(dto.correo, dto.institucionId);
+    setAuditEntityId(usuario.id);
     if (!usuario.hashContrasena) {
       throw new UnauthorizedException('Metodo local no configurado');
     }
@@ -414,6 +436,13 @@ export class AuthService {
     usuario.ultimoInicioSesionEn = new Date();
     await this.usuariosRepository.save(usuario);
 
+    setAuditAfterState({
+      sessionId,
+      usuarioId: usuario.id,
+      institucionId: usuario.institucionId,
+      perfilIdSeleccionado,
+    });
+
     return {
       accessToken,
       refreshToken,
@@ -444,6 +473,11 @@ export class AuthService {
     sesion.agenteUsuario = String(request.headers['user-agent'] ?? sesion.agenteUsuario ?? '');
     sesion.ultimaActividadEn = new Date();
     await this.sesionesRepository.save(sesion);
+
+    setAuditAfterState({
+      sessionId,
+      usuarioId: payload.usuarioId,
+    });
 
     return {
       accessToken,
