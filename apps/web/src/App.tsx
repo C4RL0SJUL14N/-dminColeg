@@ -53,6 +53,7 @@ import {
   LoginResponse,
   SedeResponse,
 } from "./api";
+import { AcademicStructurePage } from "./AcademicStructurePage";
 
 type Page =
   | "inicio"
@@ -73,6 +74,7 @@ interface Session {
   initials: string;
   demo: boolean;
   superadmin: boolean;
+  institutionId: string | null;
 }
 
 const demoSession: Session = {
@@ -83,6 +85,7 @@ const demoSession: Session = {
   initials: "MR",
   demo: true,
   superadmin: false,
+  institutionId: null,
 };
 
 const navItems: Array<{
@@ -314,6 +317,7 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
       initials: initialsFrom(name),
       demo: false,
       superadmin,
+      institutionId: response.contextoAcceso?.institucionId ?? null,
     });
   }
 
@@ -649,7 +653,15 @@ function ApplicationShell({
           {page === "matriculas" && <EnrollmentsPage onToast={setToast} />}
           {page === "asistencia" && <AttendancePage onToast={setToast} />}
           {page === "personal" && <PlaceholderPage type="personal" />}
-          {page === "academico" && <PlaceholderPage type="academico" />}
+          {page === "academico" && (
+            <AcademicStructurePage
+              accessToken={
+                sessionStorage.getItem("admincoleg.accessToken") ?? ""
+              }
+              preferredInstitutionId={session.institutionId}
+              onToast={setToast}
+            />
+          )}
         </main>
       </section>
       {toast && (

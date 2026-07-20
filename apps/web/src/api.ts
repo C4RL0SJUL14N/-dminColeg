@@ -76,6 +76,52 @@ export interface EscalaValoracionResponse {
   niveles: NivelEscalaResponse[];
 }
 
+export interface AreaConocimientoResponse {
+  id: string;
+  codigo: string;
+  nombre: string;
+  orden: number;
+  activo: boolean;
+}
+
+export interface AsignaturaResponse {
+  id: string;
+  codigo: string;
+  nombre: string;
+  areaConocimientoId: string;
+  activo: boolean;
+}
+
+export interface GradoResponse {
+  id: string;
+  codigo: string;
+  nombre: string;
+  nombreCorto?: string | null;
+  nivelEducativo: string;
+  orden: number;
+  activo: boolean;
+}
+
+export interface JornadaResponse {
+  id: string;
+  codigo: string;
+  nombre: string;
+  horaInicio?: string | null;
+  horaFin?: string | null;
+  activo: boolean;
+}
+
+export interface GrupoResponse {
+  id: string;
+  codigo: string;
+  nombre: string;
+  sedeId: string;
+  anioLectivoId: string;
+  gradoId: string;
+  jornadaId: string;
+  activo: boolean;
+}
+
 async function readApiResponse<T>(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
@@ -305,6 +351,122 @@ export function crearEscalaValoracion(
 ) {
   return authenticatedRequest<EscalaValoracionResponse[]>(
     `/instituciones/${institucionId}/escalas-valoracion`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getAreasConocimiento(
+  institucionId: string,
+  accessToken: string,
+) {
+  return authenticatedRequest<AreaConocimientoResponse[]>(
+    `/instituciones/${institucionId}/areas-conocimiento`,
+    accessToken,
+  );
+}
+
+export function crearAreaConocimiento(
+  institucionId: string,
+  input: { codigo: string; nombre: string; orden: number },
+  accessToken: string,
+) {
+  return authenticatedRequest<AreaConocimientoResponse>(
+    `/instituciones/${institucionId}/areas-conocimiento`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getAsignaturas(institucionId: string, accessToken: string) {
+  return authenticatedRequest<AsignaturaResponse[]>(
+    `/instituciones/${institucionId}/asignaturas`,
+    accessToken,
+  );
+}
+
+export function crearAsignatura(
+  institucionId: string,
+  input: { codigo: string; nombre: string; areaConocimientoId: string },
+  accessToken: string,
+) {
+  return authenticatedRequest<AsignaturaResponse>(
+    `/instituciones/${institucionId}/asignaturas`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getGrados(institucionId: string, accessToken: string) {
+  return authenticatedRequest<GradoResponse[]>(
+    `/instituciones/${institucionId}/grados`,
+    accessToken,
+  );
+}
+
+export function crearGrado(
+  institucionId: string,
+  input: {
+    codigo: string;
+    nombre: string;
+    nombreCorto?: string;
+    nivelEducativo: string;
+    orden: number;
+  },
+  accessToken: string,
+) {
+  return authenticatedRequest<GradoResponse>(
+    `/instituciones/${institucionId}/grados`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getJornadas(institucionId: string, accessToken: string) {
+  return authenticatedRequest<JornadaResponse[]>(
+    `/instituciones/${institucionId}/jornadas`,
+    accessToken,
+  );
+}
+
+export function crearJornada(
+  institucionId: string,
+  input: {
+    codigo: string;
+    nombre: string;
+    horaInicio?: string;
+    horaFin?: string;
+  },
+  accessToken: string,
+) {
+  return authenticatedRequest<JornadaResponse>(
+    `/instituciones/${institucionId}/jornadas`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getGrupos(institucionId: string, accessToken: string) {
+  return authenticatedRequest<GrupoResponse[]>(
+    `/instituciones/${institucionId}/grupos`,
+    accessToken,
+  );
+}
+
+export function crearGrupo(
+  institucionId: string,
+  input: {
+    codigo: string;
+    nombre: string;
+    sedeId: string;
+    anioLectivoId: string;
+    gradoId: string;
+    jornadaId: string;
+  },
+  accessToken: string,
+) {
+  return authenticatedRequest<GrupoResponse>(
+    `/instituciones/${institucionId}/grupos`,
     accessToken,
     { method: "POST", body: JSON.stringify(input) },
   );
