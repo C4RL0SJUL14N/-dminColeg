@@ -15,16 +15,29 @@ export interface LoginResponse {
   perfilPredeterminado?: { codigo?: string; nombre?: string } | null;
 }
 
+async function readApiResponse(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    const body = await response.text();
+    const detail = body.startsWith("The page could not be found")
+      ? "La API no está publicada en este despliegue"
+      : "La API devolvió una respuesta no válida";
+    throw new Error(`${detail} (${response.status})`);
+  }
+
+  return (await response.json()) as {
+    data?: LoginResponse;
+    message?: string | string[];
+  };
+}
+
 export async function login(correo: string, contrasena: string) {
   const response = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ correo, contrasena }),
   });
-  const payload = (await response.json()) as {
-    data?: LoginResponse;
-    message?: string | string[];
-  };
+  const payload = await readApiResponse(response);
   if (!response.ok) {
     const message = Array.isArray(payload.message)
       ? payload.message.join(". ")
@@ -44,10 +57,7 @@ export async function cambiarContrasenaInicial(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ correo, contrasenaActual, nuevaContrasena }),
   });
-  const payload = (await response.json()) as {
-    data?: LoginResponse;
-    message?: string | string[];
-  };
+  const payload = await readApiResponse(response);
   if (!response.ok) {
     const message = Array.isArray(payload.message)
       ? payload.message.join(". ")
