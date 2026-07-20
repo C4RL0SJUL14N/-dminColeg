@@ -1,11 +1,12 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import {
   setAuditAfterState,
   setAuditBeforeState,
@@ -255,32 +256,59 @@ export class InstitutionService {
     dto: CrearEscalaValoracionDto,
   ) {
     await this.findInstitucionById(institucionId);
-    const escala = await this.escalasRepository.save(
-      this.escalasRepository.create({
-        institucionId,
-        nombre: dto.nombre,
-        tipo: 'numerica',
-        valorMinimo: dto.niveles[0]?.valorMinimo ?? null,
-        valorMaximo: dto.niveles[dto.niveles.length - 1]?.valorMaximo ?? null,
-        valorAprobacion: null,
-        esPredeterminada: false,
-        activo: true,
-      }),
-    );
+    const nombre = dto.nombre.trim();
+    const existente = await this.escalasRepository.findOne({
+      where: { institucionId, nombre },
+    });
+    if (existente) {
+      throw new ConflictException(
+        `Ya existe una escala de valoración llamada "${nombre}"`,
+      );
+    }
 
-    const niveles = dto.niveles.map((nivel) =>
-      this.nivelesRepository.create({
-        escalaValoracionId: escala.id,
-        nombre: nivel.nombre,
-        etiquetaCorta: nivel.codigo,
-        valorMinimo: nivel.valorMinimo,
-        valorMaximo: nivel.valorMaximo,
-        orden: nivel.orden,
-        colorHex: null,
-      }),
-    );
+    try {
+      await this.escalasRepository.manager.transaction(async (manager) => {
+        const escala = await manager.save(
+          manager.create(EscalaValoracion, {
+            institucionId,
+            nombre,
+            tipo: 'numerica',
+            valorMinimo: dto.niveles[0]?.valorMinimo ?? null,
+            valorMaximo:
+              dto.niveles[dto.niveles.length - 1]?.valorMaximo ?? null,
+            valorAprobacion: null,
+            esPredeterminada: false,
+            activo: true,
+          }),
+        );
 
-    await this.nivelesRepository.save(niveles);
+        await manager.save(
+          NivelEscalaValoracion,
+          dto.niveles.map((nivel) =>
+            manager.create(NivelEscalaValoracion, {
+              escalaValoracionId: escala.id,
+              nombre: nivel.nombre.trim(),
+              etiquetaCorta: nivel.codigo.trim().toUpperCase(),
+              valorMinimo: nivel.valorMinimo,
+              valorMaximo: nivel.valorMaximo,
+              orden: nivel.orden,
+              colorHex: null,
+            }),
+          ),
+        );
+      });
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23505'
+      ) {
+        throw new ConflictException(
+          `Ya existe una escala de valoración llamada "${nombre}"`,
+        );
+      }
+      throw error;
+    }
+
     return this.findEscalasValoracion(institucionId);
   }
 

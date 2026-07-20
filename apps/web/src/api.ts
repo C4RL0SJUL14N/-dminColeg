@@ -89,13 +89,23 @@ async function readApiResponse<T>(response: Response) {
   return (await response.json()) as {
     data?: T;
     message?: string | string[];
+    error?: string | { message?: string | string[] };
   };
 }
 
-function apiError(payload: { message?: string | string[] }, fallback: string) {
-  const message = Array.isArray(payload.message)
-    ? payload.message.join(". ")
-    : payload.message;
+function apiError(
+  payload: {
+    message?: string | string[];
+    error?: string | { message?: string | string[] };
+  },
+  fallback: string,
+) {
+  const rawMessage =
+    payload.message ??
+    (typeof payload.error === "object" ? payload.error.message : undefined);
+  const message = Array.isArray(rawMessage)
+    ? rawMessage.join(". ")
+    : rawMessage;
   return new Error(message || fallback);
 }
 

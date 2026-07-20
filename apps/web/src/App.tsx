@@ -1079,6 +1079,18 @@ function InstitutionConfigurationPage({
   async function addScale(event: FormEvent) {
     event.preventDefault();
     setError("");
+    const normalizedName = scaleName.trim().toLocaleLowerCase("es");
+    if (
+      escalas.some(
+        (scale) =>
+          scale.nombre.trim().toLocaleLowerCase("es") === normalizedName,
+      )
+    ) {
+      setError(
+        `Ya existe una escala de valoración llamada "${scaleName.trim()}". Usa otro nombre.`,
+      );
+      return;
+    }
     if (scaleLevels.length < 2) {
       setError("La escala debe tener al menos dos niveles.");
       return;
@@ -1111,6 +1123,8 @@ function InstitutionConfigurationPage({
         accessToken,
       );
       setEscalas(result);
+      setScaleName("");
+      setScaleLevels(initialScaleLevels.map((level) => ({ ...level })));
       onToast("Escala de valoración creada correctamente");
     } catch (caught) {
       setError(actionError(caught));
