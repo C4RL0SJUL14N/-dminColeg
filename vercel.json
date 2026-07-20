@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "npm ci",
-  "buildCommand": "npm run build:web",
+  "buildCommand": "npm run build:api-gateway && npm run build:web",
   "outputDirectory": "dist/apps/web",
   "rewrites": [
     {
@@ -11,7 +11,8 @@
     }
   ],
   "functions": {
-    "api/**/*.ts": {
+    "api/**/*.js": {
+      "includeFiles": "dist/apps/api-gateway/**",
       "maxDuration": 30
     }
   }

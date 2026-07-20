@@ -1,11 +1,15 @@
-import type { INestApplication } from "@nestjs/common";
-import { NestFactory } from "@nestjs/core";
-import type { Request, Response } from "express";
-import { configureAuditApplication } from "@libs/audit";
-import { configureApplication } from "@libs/common";
-import { ApiGatewayModule } from "../apps/api-gateway/src/api-gateway.module";
+const { NestFactory } = require("@nestjs/core");
+const {
+  configureAuditApplication,
+} = require("../dist/apps/api-gateway/libs/audit/src");
+const {
+  configureApplication,
+} = require("../dist/apps/api-gateway/libs/common/src");
+const {
+  ApiGatewayModule,
+} = require("../dist/apps/api-gateway/apps/api-gateway/src/api-gateway.module");
 
-let applicationPromise: Promise<INestApplication> | undefined;
+let applicationPromise;
 
 async function createApplication() {
   const app = await NestFactory.create(ApiGatewayModule, {
@@ -29,7 +33,7 @@ function getApplication() {
   return applicationPromise;
 }
 
-function restoreApiPath(request: Request) {
+function restoreApiPath(request) {
   const url = new URL(request.url, "http://localhost");
   const rewrittenPath = url.searchParams.get("path");
   if (!rewrittenPath) return;
@@ -38,9 +42,9 @@ function restoreApiPath(request: Request) {
   request.url = `/api/${rewrittenPath}${url.searchParams.size ? url.search : ""}`;
 }
 
-export default async function handler(request: Request, response: Response) {
+module.exports = async function handler(request, response) {
   restoreApiPath(request);
   const app = await getApplication();
   const server = app.getHttpAdapter().getInstance();
   return server(request, response);
-}
+};
