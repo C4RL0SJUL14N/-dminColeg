@@ -937,17 +937,27 @@ function NewInstitutionDialog({
               </label>
               <label className="field field--full">
                 <span>Código interno</span>
-                <input
-                  value={code}
-                  onChange={(event) =>
-                    setCode(event.target.value.toUpperCase())
-                  }
-                  placeholder="Ej. IEH"
-                  maxLength={20}
-                />
+                <div className="input-with-action">
+                  <input
+                    value={code}
+                    onChange={(event) =>
+                      setCode(event.target.value.toUpperCase())
+                    }
+                    placeholder="Ej. IEH-4K2M"
+                    maxLength={20}
+                  />
+                  <button
+                    type="button"
+                    className="generate-code-button"
+                    disabled={name.trim().length < 3}
+                    onClick={() => setCode(generateInstitutionCode(name))}
+                  >
+                    <Sparkles size={15} /> Autogenerar
+                  </button>
+                </div>
                 <small>
-                  Se utilizará para identificar la institución en reportes y
-                  procesos internos.
+                  Puedes escribir uno propio o generar un código único a partir
+                  del nombre.
                 </small>
               </label>
             </div>
@@ -2024,6 +2034,23 @@ function PlaceholderPage({ type }: { type: "personal" | "academico" }) {
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+function generateInstitutionCode(value: string) {
+  const ignored = new Set(["DE", "DEL", "LA", "LAS", "EL", "LOS", "Y"]);
+  const words = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word && !ignored.has(word));
+  const prefix =
+    words
+      .slice(0, 4)
+      .map((word) => word[0])
+      .join("") || "INST";
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${prefix}-${suffix}`;
 }
 function initialsFrom(value: string) {
   return value

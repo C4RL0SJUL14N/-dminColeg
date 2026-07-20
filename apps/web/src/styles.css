@@ -1180,6 +1180,27 @@ td {
   font-weight: 500;
   line-height: 1.45;
 }
+.input-with-action {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.generate-code-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid #b8d2ca;
+  border-radius: 9px;
+  color: #2d7468;
+  background: #edf6f2;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.generate-code-button:hover:not(:disabled) {
+  border-color: #79aa9b;
+  background: #e2f0eb;
+}
 .institution-form > .form-error {
   display: flex;
   align-items: center;
@@ -1945,6 +1966,13 @@ td {
   .form-grid,
   .choice-grid {
     grid-template-columns: 1fr;
+  }
+  .input-with-action {
+    grid-template-columns: 1fr;
+  }
+  .generate-code-button {
+    min-height: 40px;
+    justify-content: center;
   }
   .enrollment-drawer {
     width: 100%;
