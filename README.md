@@ -116,6 +116,22 @@ npm run start:dev:web
 
 La aplicación web queda disponible en `http://127.0.0.1:5173`. Su gateway se configura en `apps/web/.env` mediante `VITE_API_URL`; puedes partir de `apps/web/.env.example`. El acceso permite usar credenciales reales del backend o entrar en modo demostración para revisar la interfaz sin datos locales.
 
+## Despliegue En Vercel
+
+El archivo `vercel.json` publica la GUI y expone el gateway NestJS bajo `/api` en el mismo dominio. En Vercel configura, como mínimo, estas variables para Production y Preview:
+
+- `DATABASE_URL`: URL del pooler de Supabase, no la conexión directa local.
+- `DB_SSL=true`
+- `DB_SSL_REJECT_UNAUTHORIZED=false`
+- `JWT_ACCESS_SECRET`
+- `JWT_REFRESH_SECRET`
+- `JWT_ACCESS_TTL=15m`
+- `JWT_REFRESH_TTL=7d`
+- `AUTH_MAX_FAILED_ATTEMPTS=5`
+- `PASSWORD_RESET_TTL_MINUTES=30`
+
+No agregues `DATABASE_URL`, secretos JWT ni claves privadas con el prefijo `VITE_`: ese prefijo hace que Vite los incluya en el código público del navegador. Después de cambiar variables en Vercel es necesario volver a desplegar.
+
 Validación automatizada Fase 1:
 
 ```bash
