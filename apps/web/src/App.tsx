@@ -1,7 +1,11 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
   Bell,
   BookOpen,
+  Building2,
   CalendarDays,
   Check,
   ChevronDown,
@@ -23,13 +27,26 @@ import {
 } from "lucide-react";
 import {
   cambiarContrasenaInicial,
+  crearInstitucion,
+  crearSedePrincipal,
   getApiUrl,
+  getInstituciones,
+  getPersona,
+  InstitucionResponse,
   login,
   LoginResponse,
 } from "./api";
 
-type Page = "inicio" | "matriculas" | "asistencia" | "personal" | "academico";
+type Page =
+  | "inicio"
+  | "instituciones"
+  | "matriculas"
+  | "asistencia"
+  | "personal"
+  | "academico";
 type AttendanceStatus = "presente" | "ausente" | "tarde" | "excusado";
+type EnrollmentFilter = "todos" | "activas" | "pendientes";
+type GuardianMode = "vinculado" | "pendiente";
 
 interface Session {
   name: string;
@@ -38,6 +55,7 @@ interface Session {
   institution: string;
   initials: string;
   demo: boolean;
+  superadmin: boolean;
 }
 
 const demoSession: Session = {
@@ -47,6 +65,7 @@ const demoSession: Session = {
   institution: "Institución Educativa Horizonte",
   initials: "MR",
   demo: true,
+  superadmin: false,
 };
 
 const navItems: Array<{
@@ -55,6 +74,7 @@ const navItems: Array<{
   icon: typeof LayoutDashboard;
 }> = [
   { id: "inicio", label: "Inicio", icon: LayoutDashboard },
+  { id: "instituciones", label: "Instituciones", icon: Building2 },
   { id: "academico", label: "Estructura académica", icon: BookOpen },
   { id: "matriculas", label: "Matrículas", icon: GraduationCap },
   { id: "asistencia", label: "Asistencia", icon: ClipboardCheck },
@@ -158,9 +178,11 @@ const initialStudents = [
 
 function App() {
   const stored = sessionStorage.getItem("admincoleg.session");
-  const [session, setSession] = useState<Session | null>(() =>
-    stored ? (JSON.parse(stored) as Session) : null,
-  );
+  const [session, setSession] = useState<Session | null>(() => {
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as Partial<Session>;
+    return typeof parsed.superadmin === "boolean" ? (parsed as Session) : null;
+  });
 
   function enter(next: Session) {
     sessionStorage.setItem("admincoleg.session", JSON.stringify(next));
@@ -200,7 +222,7 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
           "La cuenta tiene varios perfiles. La selección estará disponible en la próxima entrega.",
         );
       }
-      completeLogin(response);
+      await completeLogin(response);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -230,7 +252,7 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
         password,
         newPassword,
       );
-      completeLogin(response);
+      await completeLogin(response);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -242,7 +264,7 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
     }
   }
 
-  function completeLogin(response: LoginResponse) {
+  async function completeLogin(response: LoginResponse) {
     if (!response.accessToken)
       throw new Error("La respuesta no contiene una sesión válida.");
     sessionStorage.setItem("admincoleg.accessToken", response.accessToken);
@@ -252,13 +274,29 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
       response.contextoAcceso?.roles?.[0]?.nombre ??
       response.contextoAcceso?.roles?.[0]?.codigo ??
       "Usuario institucional";
+    const personaId = response.contextoAcceso?.personaId;
+    const persona = personaId
+      ? await getPersona(personaId, response.accessToken).catch(() => null)
+      : null;
+    const name = persona
+      ? [
+          persona.primerNombre,
+          persona.segundoNombre,
+          persona.primerApellido,
+          persona.segundoApellido,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : email.split("@")[0].split(".").map(capitalize).join(" ");
+    const superadmin = Boolean(response.contextoAcceso?.superadministrador);
     onLogin({
-      name: email.split("@")[0].split(".").map(capitalize).join(" "),
+      name,
       email,
       role,
-      institution: "Institución activa",
-      initials: initialsFrom(email.split("@")[0]),
+      institution: superadmin ? "Administración general" : "Institución activa",
+      initials: initialsFrom(name),
       demo: false,
+      superadmin,
     });
   }
 
@@ -458,7 +496,9 @@ function ApplicationShell({
   session: Session;
   onLogout: () => void;
 }) {
-  const [page, setPage] = useState<Page>("inicio");
+  const [page, setPage] = useState<Page>(
+    session.superadmin ? "instituciones" : "inicio",
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -466,6 +506,10 @@ function ApplicationShell({
     setPage(next);
     setMenuOpen(false);
   }
+
+  const visibleNavItems = session.superadmin
+    ? navItems
+    : navItems.filter((item) => item.id !== "instituciones");
 
   return (
     <div className="app-shell">
@@ -486,16 +530,20 @@ function ApplicationShell({
           </button>
         </div>
         <div className="school-chip">
-          <span>IE</span>
+          <span>{session.superadmin ? "SA" : "IE"}</span>
           <div>
-            <strong>Horizonte</strong>
-            <small>Sede principal</small>
+            <strong>{session.superadmin ? "AdminColeg" : "Horizonte"}</strong>
+            <small>
+              {session.superadmin
+                ? "Todas las instituciones"
+                : "Sede principal"}
+            </small>
           </div>
           <ChevronDown size={15} />
         </div>
         <nav className="main-nav" aria-label="Navegación principal">
           <p>Gestión</p>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <button
@@ -570,7 +618,17 @@ function ApplicationShell({
           </div>
         </header>
         <main className="page-content">
-          {page === "inicio" && <Dashboard onNavigate={navigate} />}
+          {page === "inicio" && (
+            <Dashboard session={session} onNavigate={navigate} />
+          )}
+          {page === "instituciones" && (
+            <InstitutionsPage
+              accessToken={
+                sessionStorage.getItem("admincoleg.accessToken") ?? ""
+              }
+              onToast={setToast}
+            />
+          )}
           {page === "matriculas" && <EnrollmentsPage onToast={setToast} />}
           {page === "asistencia" && <AttendancePage onToast={setToast} />}
           {page === "personal" && <PlaceholderPage type="personal" />}
@@ -590,13 +648,393 @@ function ApplicationShell({
   );
 }
 
-function Dashboard({ onNavigate }: { onNavigate: (page: Page) => void }) {
+function InstitutionsPage({
+  accessToken,
+  onToast,
+}: {
+  accessToken: string;
+  onToast: (message: string) => void;
+}) {
+  const [institutions, setInstitutions] = useState<InstitucionResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getInstituciones(accessToken)
+      .then((items) => {
+        if (active) setInstitutions(items);
+      })
+      .catch((caught) => {
+        if (active)
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "No fue posible consultar las instituciones",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  function created(institution: InstitucionResponse) {
+    setInstitutions((current) =>
+      [institution, ...current].sort((left, right) =>
+        left.nombre.localeCompare(right.nombre),
+      ),
+    );
+    setFormOpen(false);
+    onToast("Institución y sede principal creadas correctamente");
+  }
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Superadministración</p>
+          <h1>Instituciones</h1>
+          <p>
+            Administra las organizaciones educativas vinculadas a la plataforma.
+          </p>
+        </div>
+        <button
+          data-testid="new-institution"
+          className="button button--primary"
+          onClick={() => setFormOpen(true)}
+        >
+          <Building2 size={17} /> Nueva institución
+        </button>
+      </div>
+
+      <section className="institution-metrics">
+        <Metric
+          icon={Building2}
+          tone="teal"
+          label="Instituciones registradas"
+          value={String(institutions.length)}
+          trend="Directorio general"
+        />
+        <Metric
+          icon={ShieldCheck}
+          tone="blue"
+          label="Instituciones activas"
+          value={String(institutions.filter((item) => item.activo).length)}
+          trend="Con acceso habilitado"
+        />
+        <article className="institution-callout">
+          <span>
+            <Sparkles size={19} />
+          </span>
+          <div>
+            <strong>Configuración inicial guiada</strong>
+            <small>Crea primero la institución y su sede principal.</small>
+          </div>
+        </article>
+      </section>
+
+      <section className="panel institution-panel">
+        <div className="panel__header">
+          <div>
+            <p className="eyebrow">Directorio</p>
+            <h2>Instituciones registradas</h2>
+          </div>
+          <span className="count-badge">{institutions.length}</span>
+        </div>
+        {loading ? (
+          <div className="institution-state">Consultando instituciones…</div>
+        ) : error ? (
+          <div className="institution-state institution-state--error">
+            <AlertCircle size={20} /> {error}
+          </div>
+        ) : institutions.length === 0 ? (
+          <div className="institution-empty">
+            <span>
+              <Building2 size={27} />
+            </span>
+            <h2>Aún no hay instituciones</h2>
+            <p>
+              Crea la primera organización para iniciar su configuración
+              académica.
+            </p>
+            <button
+              className="button button--primary"
+              onClick={() => setFormOpen(true)}
+            >
+              Crear primera institución
+            </button>
+          </div>
+        ) : (
+          <div className="institution-list">
+            {institutions.map((institution) => (
+              <article className="institution-row" key={institution.id}>
+                <span className="institution-logo">
+                  {initialsFrom(institution.nombre)}
+                </span>
+                <div className="institution-identity">
+                  <strong>{institution.nombre}</strong>
+                  <small>Código {institution.codigo}</small>
+                </div>
+                <span
+                  className={
+                    institution.activo
+                      ? "status status--active"
+                      : "status status--inactive"
+                  }
+                >
+                  {institution.activo ? "Activa" : "Inactiva"}
+                </span>
+                <button className="button button--secondary institution-action">
+                  Configurar <ArrowRight size={15} />
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {formOpen && (
+        <NewInstitutionDialog
+          accessToken={accessToken}
+          onClose={() => setFormOpen(false)}
+          onCreated={created}
+        />
+      )}
+    </>
+  );
+}
+
+function NewInstitutionDialog({
+  accessToken,
+  onClose,
+  onCreated,
+}: {
+  accessToken: string;
+  onClose: () => void;
+  onCreated: (institution: InstitucionResponse) => void;
+}) {
+  const [step, setStep] = useState(1);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [campusName, setCampusName] = useState("Sede principal");
+  const [campusCode, setCampusCode] = useState("PRINCIPAL");
+  const [createdInstitution, setCreatedInstitution] =
+    useState<InstitucionResponse | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    if (step === 1) {
+      setStep(2);
+      return;
+    }
+    setSaving(true);
+    let institutionWasCreated = Boolean(createdInstitution);
+    try {
+      const institution =
+        createdInstitution ??
+        (await crearInstitucion(
+          { codigo: code.trim().toUpperCase(), nombre: name.trim() },
+          accessToken,
+        ));
+      setCreatedInstitution(institution);
+      institutionWasCreated = true;
+      await crearSedePrincipal(
+        institution.id,
+        {
+          codigo: campusCode.trim().toUpperCase(),
+          nombre: campusName.trim(),
+        },
+        accessToken,
+      );
+      onCreated(institution);
+    } catch (caught) {
+      setError(
+        institutionWasCreated
+          ? "La institución fue creada, pero falta registrar su sede. Reintenta para completar el proceso."
+          : caught instanceof Error
+            ? caught.message
+            : "No fue posible crear la institución",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const ready =
+    step === 1
+      ? Boolean(name.trim().length >= 3 && code.trim().length >= 2)
+      : Boolean(campusName.trim().length >= 3 && campusCode.trim().length >= 2);
+
+  return (
+    <div className="dialog-layer">
+      <button
+        className="drawer-backdrop"
+        aria-label="Cerrar creación de institución"
+        onClick={onClose}
+      />
+      <section
+        className="institution-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="institution-dialog-title"
+      >
+        <header className="drawer-header">
+          <div>
+            <p className="eyebrow">Paso {step} de 2</p>
+            <h2 id="institution-dialog-title">
+              {step === 1 ? "Nueva institución" : "Sede principal"}
+            </h2>
+            <p>
+              {step === 1
+                ? "Registra la identidad básica de la organización."
+                : "Toda institución inicia con una sede principal."}
+            </p>
+          </div>
+          <button className="icon-button" aria-label="Cerrar" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </header>
+        <div className="compact-stepper">
+          <span
+            className={
+              step >= 1 ? "compact-step compact-step--active" : "compact-step"
+            }
+          >
+            1
+          </span>
+          <i />
+          <span
+            className={
+              step >= 2 ? "compact-step compact-step--active" : "compact-step"
+            }
+          >
+            2
+          </span>
+        </div>
+        <form className="institution-form" onSubmit={submit}>
+          {step === 1 ? (
+            <div className="form-step">
+              <StepIntro
+                icon={Building2}
+                title="Datos de la institución"
+                text="El código debe ser corto, único y fácil de reconocer."
+              />
+              <label className="field field--full">
+                <span>Nombre oficial</span>
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Ej. Institución Educativa Horizonte"
+                />
+              </label>
+              <label className="field field--full">
+                <span>Código interno</span>
+                <input
+                  value={code}
+                  onChange={(event) =>
+                    setCode(event.target.value.toUpperCase())
+                  }
+                  placeholder="Ej. IEH"
+                  maxLength={20}
+                />
+                <small>
+                  Se utilizará para identificar la institución en reportes y
+                  procesos internos.
+                </small>
+              </label>
+            </div>
+          ) : (
+            <div className="form-step">
+              <StepIntro
+                icon={Building2}
+                title="Primera sede"
+                text="Después podrás agregar sedes adicionales y completar su configuración."
+              />
+              <div className="form-grid">
+                <label className="field">
+                  <span>Nombre de la sede</span>
+                  <input
+                    value={campusName}
+                    onChange={(event) => setCampusName(event.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  <span>Código de sede</span>
+                  <input
+                    value={campusCode}
+                    onChange={(event) =>
+                      setCampusCode(event.target.value.toUpperCase())
+                    }
+                    maxLength={20}
+                  />
+                </label>
+              </div>
+              <div className="creation-summary">
+                <span>{initialsFrom(name)}</span>
+                <div>
+                  <strong>{name}</strong>
+                  <small>
+                    {code.toUpperCase()} · {campusName}
+                  </small>
+                </div>
+                <ShieldCheck size={19} />
+              </div>
+            </div>
+          )}
+          {error && (
+            <p className="form-error">
+              <AlertCircle size={16} /> {error}
+            </p>
+          )}
+          <footer className="dialog-footer">
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={step === 1 ? onClose : () => setStep(1)}
+            >
+              {step === 2 && <ArrowLeft size={16} />}
+              {step === 1 ? "Cancelar" : "Atrás"}
+            </button>
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={!ready || saving}
+            >
+              {saving
+                ? "Creando…"
+                : step === 1
+                  ? "Continuar"
+                  : "Crear institución"}
+              {!saving && step === 1 && <ArrowRight size={16} />}
+            </button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function Dashboard({
+  session,
+  onNavigate,
+}: {
+  session: Session;
+  onNavigate: (page: Page) => void;
+}) {
   return (
     <>
       <div className="page-heading">
         <div>
           <p className="eyebrow">Domingo, 19 de julio</p>
-          <h1>Buenos días, Mariana</h1>
+          <h1>Buenos días, {session.name.split(" ")[0]}</h1>
           <p>Esto es lo que está pasando hoy en tu institución.</p>
         </div>
         <button
@@ -844,11 +1282,39 @@ function Task({
 
 function EnrollmentsPage({ onToast }: { onToast: (message: string) => void }) {
   const [search, setSearch] = useState("");
-  const filtered = enrollments.filter((item) =>
-    `${item.student} ${item.id} ${item.grade}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+  const [filter, setFilter] = useState<EnrollmentFilter>("todos");
+  const [items, setItems] = useState(enrollments);
+  const [formOpen, setFormOpen] = useState(false);
+  const filtered = items.filter(
+    (item) =>
+      `${item.student} ${item.id} ${item.grade}`
+        .toLowerCase()
+        .includes(search.toLowerCase()) &&
+      (filter === "todos" ||
+        (filter === "pendientes" ? item.pending : !item.pending)),
   );
+
+  function addEnrollment(draft: EnrollmentDraft) {
+    setItems((current) => [
+      {
+        id: `MAT-${260180 + current.length}`,
+        student: draft.student,
+        grade: `${draft.grade} ${draft.group}`,
+        date: "20 jul 2026",
+        status:
+          draft.guardianMode === "pendiente" ? "Pendiente acudiente" : "Activa",
+        pending: draft.guardianMode === "pendiente",
+      },
+      ...current,
+    ]);
+    setFormOpen(false);
+    onToast(
+      draft.guardianMode === "pendiente"
+        ? "Matrícula creada como pendiente de acudiente"
+        : "Matrícula creada correctamente",
+    );
+  }
+
   return (
     <>
       <div className="page-heading">
@@ -858,12 +1324,9 @@ function EnrollmentsPage({ onToast }: { onToast: (message: string) => void }) {
           <p>Consulta y administra las matrículas del año lectivo actual.</p>
         </div>
         <button
+          data-testid="new-enrollment"
           className="button button--primary"
-          onClick={() =>
-            onToast(
-              "Formulario de matrícula preparado para la siguiente entrega",
-            )
-          }
+          onClick={() => setFormOpen(true)}
         >
           <UserPlus size={17} /> Nueva matrícula
         </button>
@@ -896,9 +1359,21 @@ function EnrollmentsPage({ onToast }: { onToast: (message: string) => void }) {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <button className="select-button">
-            Todos los estados <ChevronDown size={15} />
-          </button>
+          <label className="filter-select">
+            <span>Estado</span>
+            <select
+              aria-label="Filtrar matrículas por estado"
+              value={filter}
+              onChange={(event) =>
+                setFilter(event.target.value as EnrollmentFilter)
+              }
+            >
+              <option value="todos">Todos los estados</option>
+              <option value="activas">Activas</option>
+              <option value="pendientes">Pendientes de acudiente</option>
+            </select>
+            <ChevronDown size={15} />
+          </label>
         </div>
         <EnrollmentTable items={filtered} />
         <div className="table-footer">
@@ -909,7 +1384,401 @@ function EnrollmentsPage({ onToast }: { onToast: (message: string) => void }) {
           </div>
         </div>
       </section>
+      {formOpen && (
+        <NewEnrollmentDrawer
+          onClose={() => setFormOpen(false)}
+          onComplete={addEnrollment}
+        />
+      )}
     </>
+  );
+}
+
+interface EnrollmentDraft {
+  student: string;
+  grade: string;
+  group: string;
+  campus: string;
+  schedule: string;
+  guardianMode: GuardianMode;
+  guardian: string;
+  deadline: string;
+  reason: string;
+}
+
+function NewEnrollmentDrawer({
+  onClose,
+  onComplete,
+}: {
+  onClose: () => void;
+  onComplete: (draft: EnrollmentDraft) => void;
+}) {
+  const [step, setStep] = useState(1);
+  const [draft, setDraft] = useState<EnrollmentDraft>({
+    student: "",
+    grade: "",
+    group: "",
+    campus: "Sede principal",
+    schedule: "Mañana",
+    guardianMode: "vinculado",
+    guardian: "",
+    deadline: "2026-07-27",
+    reason: "",
+  });
+
+  const stepReady =
+    (step === 1 && Boolean(draft.student)) ||
+    (step === 2 && Boolean(draft.grade && draft.group)) ||
+    (step === 3 &&
+      (draft.guardianMode === "vinculado"
+        ? Boolean(draft.guardian)
+        : Boolean(draft.deadline && draft.reason.trim()))) ||
+    step === 4;
+
+  function update<Key extends keyof EnrollmentDraft>(
+    key: Key,
+    value: EnrollmentDraft[Key],
+  ) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (step < 4) {
+      if (stepReady) setStep((current) => current + 1);
+      return;
+    }
+    onComplete(draft);
+  }
+
+  return (
+    <div className="drawer-layer">
+      <button
+        className="drawer-backdrop"
+        aria-label="Cerrar formulario de matrícula"
+        onClick={onClose}
+      />
+      <section
+        data-testid="enrollment-drawer"
+        className="enrollment-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-enrollment-title"
+      >
+        <header className="drawer-header">
+          <div>
+            <p className="eyebrow">Admisiones · Año lectivo 2026</p>
+            <h2 id="new-enrollment-title">Nueva matrícula</h2>
+            <p>Completa la información para ubicar al estudiante.</p>
+          </div>
+          <button className="icon-button" aria-label="Cerrar" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </header>
+
+        <div className="enrollment-stepper" aria-label={`Paso ${step} de 4`}>
+          {["Estudiante", "Ubicación", "Acudiente", "Revisión"].map(
+            (label, index) => (
+              <div
+                key={label}
+                className={
+                  step === index + 1
+                    ? "step-item step-item--active"
+                    : step > index + 1
+                      ? "step-item step-item--done"
+                      : "step-item"
+                }
+              >
+                <span>
+                  {step > index + 1 ? <Check size={14} /> : index + 1}
+                </span>
+                <small>{label}</small>
+              </div>
+            ),
+          )}
+        </div>
+
+        <form className="enrollment-form" onSubmit={submit}>
+          <div className="drawer-body">
+            {step === 1 && (
+              <div className="form-step">
+                <StepIntro
+                  icon={Search}
+                  title="Selecciona el estudiante"
+                  text="Busca una persona registrada que aún no tenga matrícula vigente."
+                />
+                <label className="field field--full">
+                  <span>Estudiante</span>
+                  <select
+                    value={draft.student}
+                    onChange={(event) => update("student", event.target.value)}
+                  >
+                    <option value="">Seleccionar estudiante…</option>
+                    <option>Valentina Gómez Martínez</option>
+                    <option>Juan José Ramírez Soto</option>
+                    <option>Isabella Herrera León</option>
+                  </select>
+                </label>
+                {draft.student && (
+                  <article className="student-preview">
+                    <span>{initialsFrom(draft.student)}</span>
+                    <div>
+                      <strong>{draft.student}</strong>
+                      <small>TI 1028947561 · Estudiante activo</small>
+                    </div>
+                    <ShieldCheck size={19} />
+                  </article>
+                )}
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="form-step">
+                <StepIntro
+                  icon={BookOpen}
+                  title="Ubicación académica"
+                  text="Todos los datos corresponden a la misma institución y año lectivo."
+                />
+                <div className="form-grid">
+                  <SelectField
+                    label="Sede"
+                    value={draft.campus}
+                    onChange={(value) => update("campus", value)}
+                    options={["Sede principal", "Sede norte"]}
+                  />
+                  <SelectField
+                    label="Jornada"
+                    value={draft.schedule}
+                    onChange={(value) => update("schedule", value)}
+                    options={["Mañana", "Tarde"]}
+                  />
+                  <SelectField
+                    label="Grado"
+                    value={draft.grade}
+                    onChange={(value) => update("grade", value)}
+                    options={["6°", "7°", "8°", "9°"]}
+                    placeholder="Seleccionar…"
+                  />
+                  <SelectField
+                    label="Grupo"
+                    value={draft.group}
+                    onChange={(value) => update("group", value)}
+                    options={["A", "B"]}
+                    placeholder="Seleccionar…"
+                  />
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="form-step">
+                <StepIntro
+                  icon={UserCheck}
+                  title="Responsable del estudiante"
+                  text="Puedes continuar aunque el acudiente todavía esté pendiente."
+                />
+                <div className="choice-grid">
+                  <button
+                    type="button"
+                    className={
+                      draft.guardianMode === "vinculado"
+                        ? "choice-card choice-card--selected"
+                        : "choice-card"
+                    }
+                    onClick={() => update("guardianMode", "vinculado")}
+                  >
+                    <UserCheck size={20} />
+                    <strong>Vincular acudiente</strong>
+                    <small>La matrícula quedará activa.</small>
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      draft.guardianMode === "pendiente"
+                        ? "choice-card choice-card--selected choice-card--warning"
+                        : "choice-card"
+                    }
+                    onClick={() => update("guardianMode", "pendiente")}
+                  >
+                    <Clock3 size={20} />
+                    <strong>Registrar como pendiente</strong>
+                    <small>Define un plazo y motivo.</small>
+                  </button>
+                </div>
+                {draft.guardianMode === "vinculado" ? (
+                  <SelectField
+                    label="Acudiente vinculado"
+                    value={draft.guardian}
+                    onChange={(value) => update("guardian", value)}
+                    options={["Laura Martínez · Madre", "Carlos Gómez · Padre"]}
+                    placeholder="Seleccionar acudiente…"
+                    full
+                  />
+                ) : (
+                  <div className="pending-box">
+                    <div className="pending-note">
+                      <AlertCircle size={18} />
+                      <span>
+                        La matrícula quedará visible en la bandeja de pendientes
+                        hasta completar el acudiente.
+                      </span>
+                    </div>
+                    <div className="form-grid">
+                      <label className="field">
+                        <span>Fecha límite</span>
+                        <input
+                          type="date"
+                          value={draft.deadline}
+                          onChange={(event) =>
+                            update("deadline", event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field field--wide">
+                        <span>Motivo</span>
+                        <textarea
+                          rows={3}
+                          placeholder="Ej. La familia está recopilando documentos…"
+                          value={draft.reason}
+                          onChange={(event) =>
+                            update("reason", event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="form-step">
+                <StepIntro
+                  icon={ClipboardCheck}
+                  title="Revisa antes de crear"
+                  text="Confirma los datos principales de la matrícula."
+                />
+                <div className="review-card">
+                  <ReviewRow label="Estudiante" value={draft.student} />
+                  <ReviewRow
+                    label="Ubicación"
+                    value={`${draft.campus} · ${draft.schedule} · ${draft.grade} ${draft.group}`}
+                  />
+                  <ReviewRow
+                    label="Estado inicial"
+                    value={
+                      draft.guardianMode === "pendiente"
+                        ? "Pendiente de acudiente"
+                        : "Activa"
+                    }
+                    warning={draft.guardianMode === "pendiente"}
+                  />
+                  <ReviewRow
+                    label={
+                      draft.guardianMode === "pendiente" ? "Plazo" : "Acudiente"
+                    }
+                    value={
+                      draft.guardianMode === "pendiente"
+                        ? draft.deadline
+                        : draft.guardian
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <footer className="drawer-footer">
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={
+                step === 1 ? onClose : () => setStep((current) => current - 1)
+              }
+            >
+              {step > 1 && <ArrowLeft size={16} />}
+              {step === 1 ? "Cancelar" : "Atrás"}
+            </button>
+            <span>Paso {step} de 4</span>
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={!stepReady}
+            >
+              {step === 4 ? "Crear matrícula" : "Continuar"}
+              {step < 4 && <ArrowRight size={16} />}
+            </button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function StepIntro({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: typeof Search;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="step-copy">
+      <span className="step-icon">
+        <Icon size={21} />
+      </span>
+      <div>
+        <h3>{title}</h3>
+        <p>{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  placeholder,
+  full = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  placeholder?: string;
+  full?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className={full ? "field field--full" : "field"}>
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ReviewRow({
+  label,
+  value,
+  warning = false,
+}: {
+  label: string;
+  value: string;
+  warning?: boolean;
+}) {
+  return (
+    <div className="review-row">
+      <span>{label}</span>
+      <strong className={warning ? "review-warning" : ""}>{value}</strong>
+    </div>
   );
 }
 
