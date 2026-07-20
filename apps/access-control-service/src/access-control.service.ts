@@ -11,6 +11,7 @@ import {
   PERFILES_ADMINISTRABLES,
   ROLE_ADMIN_APP,
   ROLE_SUPERADMIN,
+  JwtPayload,
 } from '@libs/common';
 import {
   PerfilUsuario,
@@ -46,13 +47,16 @@ export class AccessControlService {
     private readonly permisosRepository: Repository<Permiso>,
   ) {}
 
-  async getContextoAcceso(usuarioId: string) {
+  async getContextoAcceso(usuarioId: string, currentUser: JwtPayload) {
     setAuditEntityId(usuarioId);
-    const usuario = await this.usuariosRepository.findOneBy({ id: usuarioId });
-    if (!usuario) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+    const usuario = await this.ensureUsuario(usuarioId);
+    this.assertCanConsultUser(usuario, currentUser);
 
+    return this.buildContextoAcceso(usuario);
+  }
+
+  private async buildContextoAcceso(usuario: Usuario) {
+    const usuarioId = usuario.id;
     const perfiles = await this.perfilesRepository.find({
       where: { usuarioId, activo: true },
       relations: { tipoPerfil: true },
@@ -64,7 +68,7 @@ export class AccessControlService {
 
     const superadministrador = this.isSuperadministrador(usuario, roles.map((r) => r.rol.codigo));
 
-    const permisos = await this.getPermisosEfectivos(usuarioId);
+    const permisos = await this.buildPermisosEfectivos(usuarioId);
 
     return {
       usuarioId: usuario.id,
@@ -87,13 +91,15 @@ export class AccessControlService {
     };
   }
 
-  async getPermisosEfectivos(usuarioId: string) {
+  async getPermisosEfectivos(usuarioId: string, currentUser: JwtPayload) {
     setAuditEntityId(usuarioId);
-    const usuario = await this.usuariosRepository.findOneBy({ id: usuarioId });
-    if (!usuario) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+    const usuario = await this.ensureUsuario(usuarioId);
+    this.assertCanConsultUser(usuario, currentUser);
 
+    return this.buildPermisosEfectivos(usuarioId);
+  }
+
+  private async buildPermisosEfectivos(usuarioId: string) {
     const roles = await this.rolesUsuarioRepository.find({
       where: { usuarioId },
     });
@@ -238,7 +244,7 @@ export class AccessControlService {
       );
     }
 
-    const contexto = await this.getContextoAcceso(usuario.id);
+    const contexto = await this.buildContextoAcceso(usuario);
     setAuditAfterState(contexto);
     return contexto;
   }
@@ -254,5 +260,24 @@ export class AccessControlService {
 
   private isSuperadministrador(usuario: Usuario, roleCodes: string[] = []) {
     return usuario.institucionId === null || roleCodes.includes(ROLE_SUPERADMIN);
+  }
+
+  private assertCanConsultUser(usuario: Usuario, currentUser: JwtPayload) {
+    if (currentUser.superadministrador || currentUser.usuarioId === usuario.id) {
+      return;
+    }
+
+    const isInstitutionAdmin = currentUser.roles.includes(ROLE_ADMIN_APP);
+    const isSameInstitution =
+      currentUser.institucionId !== null &&
+      currentUser.institucionId === usuario.institucionId;
+
+    if (isInstitutionAdmin && isSameInstitution) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'No tiene permisos para consultar el contexto de acceso de este usuario',
+    );
   }
 }

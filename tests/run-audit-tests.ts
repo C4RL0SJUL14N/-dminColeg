@@ -22,7 +22,6 @@ import { configureApplication } from '@libs/common';
 
 process.env.DB_SSL = process.env.DB_SSL ?? 'true';
 process.env.DB_SSL_REJECT_UNAUTHORIZED = 'false';
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const { Client }: { Client: new (config: Record<string, unknown>) => any } = require('pg');
 

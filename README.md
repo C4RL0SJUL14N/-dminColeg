@@ -1,6 +1,6 @@
-# AdminColeg Backend
+# AdminColeg
 
-Backend monorepo en NestJS para una plataforma educativa multiinstitución, construido sobre una base PostgreSQL existente en Supabase y respetando el dominio real ya definido.
+Plataforma educativa multiinstitución con backend NestJS, frontend React y PostgreSQL en Supabase.
 
 ## Stack
 
@@ -12,6 +12,7 @@ Backend monorepo en NestJS para una plataforma educativa multiinstitución, cons
 - Swagger / OpenAPI
 - class-validator
 - Newman / Postman para validación automatizada de Fase 1
+- React + Vite para la aplicación web
 
 ## Servicios Implementados En Fase 1
 
@@ -20,16 +21,25 @@ Backend monorepo en NestJS para una plataforma educativa multiinstitución, cons
 - `access-control-service`
 - `institution-service`
 - `identity-service`
+- `academic-structure-service` (inicio Fase 2)
+- `enrollment-service` (Fase 2)
+- `staff-service` (Fase 2)
+- `attendance-service` (Fase 2)
 
 ## Arquitectura
 
 ```text
 apps/
+  web/
   api-gateway/
   auth-service/
   access-control-service/
   institution-service/
   identity-service/
+  academic-structure-service/
+  enrollment-service/
+  staff-service/
+  attendance-service/
 libs/
   common/
   database/
@@ -86,6 +96,7 @@ Build:
 
 ```bash
 npm run build
+npm run build:web
 ```
 
 Desarrollo:
@@ -96,13 +107,26 @@ npm run start:dev:auth-service
 npm run start:dev:access-control-service
 npm run start:dev:institution-service
 npm run start:dev:identity-service
+npm run start:dev:academic-structure-service
+npm run start:dev:enrollment-service
+npm run start:dev:staff-service
+npm run start:dev:attendance-service
+npm run start:dev:web
 ```
+
+La aplicación web queda disponible en `http://127.0.0.1:5173`. Su gateway se configura en `apps/web/.env` mediante `VITE_API_URL`; puedes partir de `apps/web/.env.example`. El acceso permite usar credenciales reales del backend o entrar en modo demostración para revisar la interfaz sin datos locales.
 
 Validación automatizada Fase 1:
 
 ```bash
+npm run test:access-control
+npm run test:academic-authorization
+npm run test:enrollment-authorization
+npm run test:staff-authorization
+npm run test:attendance-authorization
 npm run test:fase1
-npm run test:fase1:html
+npm run test:fase1:json
+npm run audit:prod
 ```
 
 ## Swagger
@@ -120,6 +144,10 @@ Puertos por servicio:
 - `3002` access-control-service
 - `3003` institution-service
 - `3004` identity-service
+- `3005` academic-structure-service
+- `3006` enrollment-service
+- `3007` staff-service
+- `3008` attendance-service
 
 ## Estado De Fase 1
 
@@ -148,7 +176,7 @@ Documentación relacionada:
 
 La base quedó lista para continuar con:
 
-- `academic-structure-service`
-- `enrollment-service`
+- `academic-structure-service` iniciado
+- `enrollment-service` iniciado con estudiantes, acudientes, matriculas y grupos
 
 Sin rediseñar la arquitectura ni modificar el esquema existente.

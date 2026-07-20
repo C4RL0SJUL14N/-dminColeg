@@ -1,6 +1,12 @@
 node_modules/
 dist/
 coverage/
+apps/**/*.js
+apps/**/*.d.ts
+apps/**/*.js.map
+libs/**/*.js
+libs/**/*.d.ts
+libs/**/*.js.map
 *.log
 npm-debug.log*
 yarn-debug.log*

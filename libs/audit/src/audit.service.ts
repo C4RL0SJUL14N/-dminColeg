@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import {
   AUDIT_EVENT_TYPE,
-  AUDIT_RESULT,
   AUDIT_SCOPE,
   AUDIT_SEVERITY,
 } from './audit.constants';

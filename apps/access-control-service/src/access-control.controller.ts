@@ -1,7 +1,19 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Audit, AUDIT_EVENT_TYPE, AUDIT_SEVERITY } from '@libs/audit';
-import { Roles, ROLE_SUPERADMIN } from '@libs/common';
+import {
+  CurrentUser,
+  JwtPayload,
+  Roles,
+  ROLE_SUPERADMIN,
+} from '@libs/common';
 import {
   AsignarAdministradorAppDto,
   AsignarPerfilDto,
@@ -25,8 +37,11 @@ export class AccessControlController {
     tipoEvento: AUDIT_EVENT_TYPE.SEGURIDAD,
     severidad: AUDIT_SEVERITY.INFO,
   })
-  getContextoAcceso(@Param('id') usuarioId: string) {
-    return this.accessControlService.getContextoAcceso(usuarioId);
+  getContextoAcceso(
+    @Param('id', new ParseUUIDPipe()) usuarioId: string,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.accessControlService.getContextoAcceso(usuarioId, currentUser);
   }
 
   @Get('usuarios/:id/permisos-efectivos')
@@ -39,8 +54,14 @@ export class AccessControlController {
     tipoEvento: AUDIT_EVENT_TYPE.SEGURIDAD,
     severidad: AUDIT_SEVERITY.INFO,
   })
-  getPermisosEfectivos(@Param('id') usuarioId: string) {
-    return this.accessControlService.getPermisosEfectivos(usuarioId);
+  getPermisosEfectivos(
+    @Param('id', new ParseUUIDPipe()) usuarioId: string,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.accessControlService.getPermisosEfectivos(
+      usuarioId,
+      currentUser,
+    );
   }
 
   @Roles(ROLE_SUPERADMIN)

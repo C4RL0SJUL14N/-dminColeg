@@ -54,7 +54,42 @@
       "compilerOptions": {
         "tsConfigPath": "apps/identity-service/tsconfig.app.json"
       }
+    },
+    "academic-structure-service": {
+      "type": "application",
+      "root": "apps/academic-structure-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/academic-structure-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/academic-structure-service/tsconfig.app.json"
+      }
+    },
+    "enrollment-service": {
+      "type": "application",
+      "root": "apps/enrollment-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/enrollment-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/enrollment-service/tsconfig.app.json"
+      }
+    },
+    "staff-service": {
+      "type": "application",
+      "root": "apps/staff-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/staff-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/staff-service/tsconfig.app.json"
+      }
+    },
+    "attendance-service": {
+      "type": "application",
+      "root": "apps/attendance-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/attendance-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/attendance-service/tsconfig.app.json"
+      }
     }
   }
 }
-

@@ -5,13 +5,9 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import {
-  AUDIT_METADATA_KEY,
-  AUDIT_RESULT,
-  AuditRequest,
-  AuditOptions,
-  AuditService,
-} from '@libs/audit';
+import { AUDIT_METADATA_KEY, AUDIT_RESULT } from '@libs/audit/audit.constants';
+import { AuditService } from '@libs/audit/audit.service';
+import { AuditOptions, AuditRequest } from '@libs/audit/audit.types';
 import { INSTITUTION_SCOPE_KEY } from '../constants/auth.constants';
 import { JwtPayload } from '../types/jwt-payload.type';
 import { InstitutionScopeOptions } from '../decorators/institution-scoped.decorator';
@@ -82,10 +78,10 @@ export class InstitutionContextGuard implements CanActivate {
     },
     error: ForbiddenException,
   ): Promise<void> {
-    const options = this.reflector.getAllAndOverride<AuditOptions>(AUDIT_METADATA_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const options = this.reflector.getAllAndOverride<AuditOptions>(
+      AUDIT_METADATA_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!options) {
       return;

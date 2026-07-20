@@ -5,13 +5,9 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import {
-  AUDIT_METADATA_KEY,
-  AUDIT_RESULT,
-  AuditRequest,
-  AuditOptions,
-  AuditService,
-} from '@libs/audit';
+import { AUDIT_METADATA_KEY, AUDIT_RESULT } from '@libs/audit/audit.constants';
+import { AuditService } from '@libs/audit/audit.service';
+import { AuditOptions, AuditRequest } from '@libs/audit/audit.types';
 import { ROLES_KEY } from '../constants/auth.constants';
 import { JwtPayload } from '../types/jwt-payload.type';
 
@@ -23,20 +19,26 @@ export class RolesGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!requiredRoles?.length) {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<AuditRequest & { user?: JwtPayload }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<AuditRequest & { user?: JwtPayload }>();
     const user = request.user;
 
     if (!user) {
-      await this.logDeniedAudit(context, request, new ForbiddenException('No se encontro contexto autenticado'));
+      await this.logDeniedAudit(
+        context,
+        request,
+        new ForbiddenException('No se encontro contexto autenticado'),
+      );
       throw new ForbiddenException('No se encontro contexto autenticado');
     }
 
@@ -46,7 +48,11 @@ export class RolesGuard implements CanActivate {
 
     const hasRole = requiredRoles.some((role) => user.roles.includes(role));
     if (!hasRole) {
-      await this.logDeniedAudit(context, request, new ForbiddenException('No tiene los roles requeridos'));
+      await this.logDeniedAudit(
+        context,
+        request,
+        new ForbiddenException('No tiene los roles requeridos'),
+      );
       throw new ForbiddenException('No tiene los roles requeridos');
     }
 
@@ -58,10 +64,10 @@ export class RolesGuard implements CanActivate {
     request: AuditRequest & { user?: JwtPayload },
     error: ForbiddenException,
   ): Promise<void> {
-    const options = this.reflector.getAllAndOverride<AuditOptions>(AUDIT_METADATA_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const options = this.reflector.getAllAndOverride<AuditOptions>(
+      AUDIT_METADATA_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!options) {
       return;

@@ -57,13 +57,13 @@ npm run test:fase1
 Ejecucion con reporte HTML:
 
 ```bash
-npm run test:fase1:html
+npm run test:fase1:json
 ```
 
 Reporte esperado:
 
 - CLI en consola
-- HTML en `docs/reports/fase1-report.html`
+- JSON en `docs/reports/fase1-report.json`
 - si el backend no esta arriba o una request no responde, Newman falla rapido por `--timeout-request` y `--bail`
 
 ## Como Resuelve Variables Dinamicas

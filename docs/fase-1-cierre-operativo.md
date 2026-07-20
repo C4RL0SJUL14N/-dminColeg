@@ -9,8 +9,8 @@
   `POST http://localhost:3000/auth/login`
   ```json
   {
-    "correo": "superadmin@plataforma.local",
-    "contrasena": "AdminColeg2026!"
+    "correo": "20superadmincolegio26@gmail.com",
+    "contrasena": "<CONTRASENA_SUPERADMIN>"
   }
   ```
   Resultado esperado: `200`, `accessToken`, `refreshToken`, `contextoAcceso` y `timestamp`
@@ -20,7 +20,7 @@
   `POST http://localhost:3000/auth/login`
   ```json
   {
-    "correo": "superadmin@plataforma.local",
+    "correo": "20superadmincolegio26@gmail.com",
     "contrasena": "incorrecta123"
   }
   ```
@@ -35,9 +35,9 @@
   `POST http://localhost:3000/auth/cambiar-contrasena-inicial`
   ```json
   {
-    "correo": "superadmin@plataforma.local",
-    "contrasenaActual": "1000000000",
-    "nuevaContrasena": "AdminColeg2026!"
+    "correo": "20superadmincolegio26@gmail.com",
+    "contrasenaActual": "<CONTRASENA_TEMPORAL>",
+    "nuevaContrasena": "<NUEVA_CONTRASENA_SEGURA>"
   }
   ```
   Resultado esperado: `200`, nuevos tokens, `debe_cambiar_contrasena = false`
@@ -66,7 +66,7 @@
   `POST http://localhost:3000/auth/solicitar-recuperacion`
   ```json
   {
-    "correo": "superadmin@plataforma.local"
+    "correo": "20superadmincolegio26@gmail.com"
   }
   ```
   Resultado esperado: `200`, `solicitado = true`, `tokenDesarrollo` en entorno local

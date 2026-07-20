@@ -31,11 +31,14 @@ export class TokenService {
   }
 
   private sanitizePayload(payload: JwtPayload): JwtPayload {
-    const { exp, iat, nbf, ...safePayload } = payload as JwtPayload & {
+    const safePayload = { ...payload } as JwtPayload & {
       exp?: number;
       iat?: number;
       nbf?: number;
     };
+    delete safePayload.exp;
+    delete safePayload.iat;
+    delete safePayload.nbf;
 
     return safePayload;
   }

@@ -8,12 +8,9 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import {
-  AUDIT_METADATA_KEY,
-  AUDIT_RESULT,
-  AuditOptions,
-  AuditService,
-} from '@libs/audit';
+import { AUDIT_METADATA_KEY, AUDIT_RESULT } from '@libs/audit/audit.constants';
+import { AuditService } from '@libs/audit/audit.service';
+import { AuditOptions } from '@libs/audit/audit.types';
 import { PUBLIC_ROUTE_KEY } from '../constants/auth.constants';
 import { JwtPayload } from '../types/jwt-payload.type';
 
@@ -36,14 +33,20 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request & { user?: JwtPayload }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user?: JwtPayload }>();
     const authHeader = request.headers.authorization;
     const token = authHeader?.startsWith('Bearer ')
       ? authHeader.slice(7)
       : undefined;
 
     if (!token) {
-      await this.logDeniedAudit(context, request, new UnauthorizedException('Token JWT requerido'));
+      await this.logDeniedAudit(
+        context,
+        request,
+        new UnauthorizedException('Token JWT requerido'),
+      );
       throw new UnauthorizedException('Token JWT requerido');
     }
 
@@ -68,10 +71,10 @@ export class JwtAuthGuard implements CanActivate {
     request: Request & { user?: JwtPayload },
     error: UnauthorizedException,
   ): Promise<void> {
-    const options = this.reflector.getAllAndOverride<AuditOptions>(AUDIT_METADATA_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const options = this.reflector.getAllAndOverride<AuditOptions>(
+      AUDIT_METADATA_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!options) {
       return;

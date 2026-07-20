@@ -29,7 +29,13 @@
       "@apps/auth-service/*": ["apps/auth-service/src/*"],
       "@apps/access-control-service/*": ["apps/access-control-service/src/*"],
       "@apps/institution-service/*": ["apps/institution-service/src/*"],
-      "@apps/identity-service/*": ["apps/identity-service/src/*"]
+      "@apps/identity-service/*": ["apps/identity-service/src/*"],
+      "@apps/academic-structure-service/*": [
+        "apps/academic-structure-service/src/*"
+      ],
+      "@apps/enrollment-service/*": ["apps/enrollment-service/src/*"],
+      "@apps/staff-service/*": ["apps/staff-service/src/*"],
+      "@apps/attendance-service/*": ["apps/attendance-service/src/*"]
     }
   },
   "exclude": ["node_modules", "dist"]
