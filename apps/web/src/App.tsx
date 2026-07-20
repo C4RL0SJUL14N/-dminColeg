@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -14,9 +14,13 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   MoreHorizontal,
+  Plus,
   Search,
+  Save,
+  Settings2,
   ShieldCheck,
   Sparkles,
   TrendingUp,
@@ -26,15 +30,28 @@ import {
   X,
 } from "lucide-react";
 import {
+  actualizarInstitucion,
+  AnioLectivoResponse,
   cambiarContrasenaInicial,
+  ConfiguracionInstitucionResponse,
+  crearAnioLectivo,
+  crearEscalaValoracion,
   crearInstitucion,
+  crearSede,
   crearSedePrincipal,
+  EscalaValoracionResponse,
+  getAniosLectivos,
   getApiUrl,
+  getConfiguracionInstitucion,
+  getEscalasValoracion,
   getInstituciones,
   getPersona,
+  getSedes,
+  guardarConfiguracionInstitucion,
   InstitucionResponse,
   login,
   LoginResponse,
+  SedeResponse,
 } from "./api";
 
 type Page =
@@ -659,6 +676,8 @@ function InstitutionsPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedInstitution, setSelectedInstitution] =
+    useState<InstitucionResponse | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -690,6 +709,27 @@ function InstitutionsPage({
     );
     setFormOpen(false);
     onToast("Institución y sede principal creadas correctamente");
+  }
+
+  function updated(institution: InstitucionResponse) {
+    setSelectedInstitution(institution);
+    setInstitutions((current) =>
+      current
+        .map((item) => (item.id === institution.id ? institution : item))
+        .sort((left, right) => left.nombre.localeCompare(right.nombre)),
+    );
+  }
+
+  if (selectedInstitution) {
+    return (
+      <InstitutionConfigurationPage
+        institution={selectedInstitution}
+        accessToken={accessToken}
+        onBack={() => setSelectedInstitution(null)}
+        onUpdated={updated}
+        onToast={onToast}
+      />
+    );
   }
 
   return (
@@ -788,7 +828,10 @@ function InstitutionsPage({
                 >
                   {institution.activo ? "Activa" : "Inactiva"}
                 </span>
-                <button className="button button--secondary institution-action">
+                <button
+                  className="button button--secondary institution-action"
+                  onClick={() => setSelectedInstitution(institution)}
+                >
                   Configurar <ArrowRight size={15} />
                 </button>
               </article>
@@ -805,6 +848,802 @@ function InstitutionsPage({
         />
       )}
     </>
+  );
+}
+
+type ConfigurationSection =
+  "general" | "sedes" | "calendario" | "pedagogia" | "evaluacion";
+
+interface ScaleLevelDraft {
+  id: string;
+  codigo: string;
+  nombre: string;
+  valorMinimo: string;
+  valorMaximo: string;
+}
+
+const initialScaleLevels: ScaleLevelDraft[] = [
+  {
+    id: "bajo",
+    codigo: "BAJO",
+    nombre: "Desempeño bajo",
+    valorMinimo: "1.0",
+    valorMaximo: "2.9",
+  },
+  {
+    id: "basico",
+    codigo: "BASICO",
+    nombre: "Desempeño básico",
+    valorMinimo: "3.0",
+    valorMaximo: "3.9",
+  },
+  {
+    id: "alto",
+    codigo: "ALTO",
+    nombre: "Desempeño alto",
+    valorMinimo: "4.0",
+    valorMaximo: "4.5",
+  },
+  {
+    id: "superior",
+    codigo: "SUPERIOR",
+    nombre: "Desempeño superior",
+    valorMinimo: "4.6",
+    valorMaximo: "5.0",
+  },
+];
+
+function InstitutionConfigurationPage({
+  institution,
+  accessToken,
+  onBack,
+  onUpdated,
+  onToast,
+}: {
+  institution: InstitucionResponse;
+  accessToken: string;
+  onBack: () => void;
+  onUpdated: (institution: InstitucionResponse) => void;
+  onToast: (message: string) => void;
+}) {
+  const [section, setSection] = useState<ConfigurationSection>("general");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState("");
+  const [sedes, setSedes] = useState<SedeResponse[]>([]);
+  const [anios, setAnios] = useState<AnioLectivoResponse[]>([]);
+  const [configuracion, setConfiguracion] =
+    useState<ConfiguracionInstitucionResponse | null>(null);
+  const [escalas, setEscalas] = useState<EscalaValoracionResponse[]>([]);
+
+  const [institutionName, setInstitutionName] = useState(institution.nombre);
+  const [institutionActive, setInstitutionActive] = useState(
+    institution.activo,
+  );
+  const [campusName, setCampusName] = useState("");
+  const [campusCode, setCampusCode] = useState("");
+  const currentYear = new Date().getFullYear();
+  const [yearName, setYearName] = useState(`Año lectivo ${currentYear}`);
+  const [yearStart, setYearStart] = useState(`${currentYear}-01-15`);
+  const [yearEnd, setYearEnd] = useState(`${currentYear}-11-30`);
+  const [pedagogicalModel, setPedagogicalModel] = useState("");
+  const [pedagogicalApproach, setPedagogicalApproach] = useState("");
+  const [scaleType, setScaleType] = useState("numerica");
+  const [scaleName, setScaleName] = useState("Escala institucional");
+  const [scaleLevels, setScaleLevels] = useState<ScaleLevelDraft[]>(() =>
+    initialScaleLevels.map((level) => ({ ...level })),
+  );
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    Promise.all([
+      getSedes(institution.id, accessToken),
+      getAniosLectivos(institution.id, accessToken),
+      getConfiguracionInstitucion(institution.id, accessToken),
+      getEscalasValoracion(institution.id, accessToken),
+    ])
+      .then(([campuses, academicYears, settings, gradingScales]) => {
+        if (!active) return;
+        setSedes(campuses);
+        setAnios(academicYears);
+        setConfiguracion(settings);
+        setEscalas(gradingScales);
+        setPedagogicalModel(settings?.modeloPedagogico ?? "");
+        setPedagogicalApproach(settings?.enfoquePedagogico ?? "");
+        setScaleType(settings?.tipoEscalaValoracion ?? "numerica");
+      })
+      .catch((caught) => {
+        if (active)
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "No fue posible cargar la configuración institucional",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [accessToken, institution.id]);
+
+  async function saveGeneral(event: FormEvent) {
+    event.preventDefault();
+    setSaving("general");
+    setError("");
+    try {
+      const updated = await actualizarInstitucion(
+        institution.id,
+        { nombre: institutionName.trim(), activo: institutionActive },
+        accessToken,
+      );
+      onUpdated(updated);
+      onToast("Datos generales actualizados");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function addCampus(event: FormEvent) {
+    event.preventDefault();
+    setSaving("sede");
+    setError("");
+    try {
+      const campus = await crearSede(
+        institution.id,
+        {
+          codigo: campusCode.trim().toUpperCase(),
+          nombre: campusName.trim(),
+        },
+        accessToken,
+      );
+      setSedes((current) =>
+        [...current, campus].sort((left, right) =>
+          left.nombre.localeCompare(right.nombre),
+        ),
+      );
+      setCampusName("");
+      setCampusCode("");
+      onToast("Sede agregada correctamente");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function addAcademicYear(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    if (yearStart >= yearEnd) {
+      setError(
+        "La fecha de finalización debe ser posterior a la fecha de inicio.",
+      );
+      return;
+    }
+    setSaving("anio");
+    try {
+      const academicYear = await crearAnioLectivo(
+        institution.id,
+        { nombre: yearName.trim(), fechaInicio: yearStart, fechaFin: yearEnd },
+        accessToken,
+      );
+      setAnios((current) => [academicYear, ...current]);
+      onToast("Año lectivo creado correctamente");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function savePedagogy(event: FormEvent) {
+    event.preventDefault();
+    setSaving("pedagogia");
+    setError("");
+    try {
+      const settings = await guardarConfiguracionInstitucion(
+        institution.id,
+        {
+          modeloPedagogico: pedagogicalModel.trim(),
+          enfoquePedagogico: pedagogicalApproach.trim(),
+          tipoEscalaValoracion: scaleType,
+        },
+        accessToken,
+      );
+      setConfiguracion(settings);
+      onToast("Configuración pedagógica guardada");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  function updateScaleLevel(
+    id: string,
+    field: keyof Omit<ScaleLevelDraft, "id">,
+    value: string,
+  ) {
+    setScaleLevels((current) =>
+      current.map((level) =>
+        level.id === id ? { ...level, [field]: value } : level,
+      ),
+    );
+  }
+
+  async function addScale(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    if (scaleLevels.length < 2) {
+      setError("La escala debe tener al menos dos niveles.");
+      return;
+    }
+    if (
+      scaleLevels.some(
+        (level) =>
+          !level.codigo.trim() ||
+          !level.nombre.trim() ||
+          Number(level.valorMinimo) > Number(level.valorMaximo),
+      )
+    ) {
+      setError("Completa los niveles y verifica sus rangos de valoración.");
+      return;
+    }
+    setSaving("escala");
+    try {
+      const result = await crearEscalaValoracion(
+        institution.id,
+        {
+          nombre: scaleName.trim(),
+          niveles: scaleLevels.map((level, index) => ({
+            codigo: level.codigo.trim().toUpperCase(),
+            nombre: level.nombre.trim(),
+            valorMinimo: level.valorMinimo,
+            valorMaximo: level.valorMaximo,
+            orden: index + 1,
+          })),
+        },
+        accessToken,
+      );
+      setEscalas(result);
+      onToast("Escala de valoración creada correctamente");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  const sections: Array<{
+    id: ConfigurationSection;
+    label: string;
+    detail: string;
+    icon: typeof Settings2;
+  }> = [
+    {
+      id: "general",
+      label: "Datos generales",
+      detail: "Identidad y estado",
+      icon: Settings2,
+    },
+    {
+      id: "sedes",
+      label: "Sedes",
+      detail: `${sedes.length} registradas`,
+      icon: MapPin,
+    },
+    {
+      id: "calendario",
+      label: "Años lectivos",
+      detail: `${anios.length} configurados`,
+      icon: CalendarDays,
+    },
+    {
+      id: "pedagogia",
+      label: "Modelo pedagógico",
+      detail: configuracion ? "Configurado" : "Pendiente",
+      icon: BookOpen,
+    },
+    {
+      id: "evaluacion",
+      label: "Escalas",
+      detail: `${escalas.length} registradas`,
+      icon: TrendingUp,
+    },
+  ];
+
+  return (
+    <div className="configuration-page">
+      <div className="configuration-heading">
+        <button className="button button--secondary" onClick={onBack}>
+          <ArrowLeft size={16} /> Instituciones
+        </button>
+        <div className="configuration-title">
+          <span className="institution-logo">
+            {initialsFrom(institution.nombre)}
+          </span>
+          <div>
+            <p className="eyebrow">Configuración institucional</p>
+            <h1>{institution.nombre}</h1>
+            <small>Código interno {institution.codigo}</small>
+          </div>
+        </div>
+        <span
+          className={
+            institution.activo
+              ? "status status--active"
+              : "status status--inactive"
+          }
+        >
+          {institution.activo ? "Activa" : "Inactiva"}
+        </span>
+      </div>
+
+      {error && (
+        <p className="configuration-error" role="alert">
+          <AlertCircle size={17} /> {error}
+          <button aria-label="Cerrar mensaje" onClick={() => setError("")}>
+            <X size={15} />
+          </button>
+        </p>
+      )}
+
+      {loading ? (
+        <div className="institution-state">Cargando configuración…</div>
+      ) : (
+        <div className="configuration-layout">
+          <aside
+            className="configuration-nav"
+            aria-label="Secciones de configuración"
+          >
+            {sections.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  className={
+                    section === item.id
+                      ? "configuration-nav__item configuration-nav__item--active"
+                      : "configuration-nav__item"
+                  }
+                  onClick={() => {
+                    setSection(item.id);
+                    setError("");
+                  }}
+                >
+                  <span>
+                    <Icon size={18} />
+                  </span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{item.detail}</small>
+                  </div>
+                  <ArrowRight size={15} />
+                </button>
+              );
+            })}
+          </aside>
+
+          <section className="configuration-content">
+            {section === "general" && (
+              <ConfigurationCard
+                title="Datos generales"
+                description="Actualiza el nombre visible y controla el acceso de la institución."
+                icon={Settings2}
+              >
+                <form className="configuration-form" onSubmit={saveGeneral}>
+                  <label className="field field--full">
+                    <span>Nombre oficial</span>
+                    <input
+                      value={institutionName}
+                      onChange={(event) =>
+                        setInstitutionName(event.target.value)
+                      }
+                      minLength={3}
+                      required
+                    />
+                  </label>
+                  <div className="read-only-field">
+                    <span>Código interno</span>
+                    <strong>{institution.codigo}</strong>
+                    <small>No cambia después de crear la institución.</small>
+                  </div>
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={institutionActive}
+                      onChange={(event) =>
+                        setInstitutionActive(event.target.checked)
+                      }
+                    />
+                    <span>
+                      <strong>Institución activa</strong>
+                      <small>
+                        Permite el acceso y las operaciones institucionales.
+                      </small>
+                    </span>
+                  </label>
+                  <FormActions
+                    saving={saving === "general"}
+                    label="Guardar datos generales"
+                  />
+                </form>
+              </ConfigurationCard>
+            )}
+
+            {section === "sedes" && (
+              <ConfigurationCard
+                title="Sedes"
+                description="Registra las ubicaciones que pertenecen a esta institución."
+                icon={MapPin}
+              >
+                <EntityList
+                  empty="No hay sedes registradas."
+                  items={sedes.map((campus) => ({
+                    id: campus.id,
+                    title: campus.nombre,
+                    detail: campus.codigo,
+                    status: campus.activo ? "Activa" : "Inactiva",
+                  }))}
+                />
+                <form
+                  className="configuration-form configuration-form--divided"
+                  onSubmit={addCampus}
+                >
+                  <h3>Agregar sede</h3>
+                  <div className="form-grid">
+                    <label className="field">
+                      <span>Nombre de la sede</span>
+                      <input
+                        value={campusName}
+                        onChange={(event) => setCampusName(event.target.value)}
+                        placeholder="Ej. Sede Norte"
+                        minLength={3}
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Código de sede</span>
+                      <CodeInput
+                        value={campusCode}
+                        onChange={setCampusCode}
+                        source={campusName}
+                        fallback="SEDE"
+                        placeholder="Ej. SN-4K2M"
+                      />
+                    </label>
+                  </div>
+                  <FormActions
+                    saving={saving === "sede"}
+                    label="Agregar sede"
+                  />
+                </form>
+              </ConfigurationCard>
+            )}
+
+            {section === "calendario" && (
+              <ConfigurationCard
+                title="Años lectivos"
+                description="Define el periodo operativo para matrículas, grupos y calificaciones."
+                icon={CalendarDays}
+              >
+                <EntityList
+                  empty="No hay años lectivos configurados."
+                  items={anios.map((year) => ({
+                    id: year.id,
+                    title: year.nombre ?? String(year.anio),
+                    detail: `${formatDate(year.fechaInicio)} — ${formatDate(year.fechaFin)}`,
+                    status: capitalize(year.estado),
+                  }))}
+                />
+                <form
+                  className="configuration-form configuration-form--divided"
+                  onSubmit={addAcademicYear}
+                >
+                  <h3>Crear año lectivo</h3>
+                  <label className="field field--full">
+                    <span>Nombre</span>
+                    <input
+                      value={yearName}
+                      onChange={(event) => setYearName(event.target.value)}
+                      minLength={3}
+                      required
+                    />
+                  </label>
+                  <div className="form-grid">
+                    <label className="field">
+                      <span>Fecha de inicio</span>
+                      <input
+                        type="date"
+                        value={yearStart}
+                        onChange={(event) => setYearStart(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Fecha de finalización</span>
+                      <input
+                        type="date"
+                        value={yearEnd}
+                        onChange={(event) => setYearEnd(event.target.value)}
+                        required
+                      />
+                    </label>
+                  </div>
+                  <FormActions
+                    saving={saving === "anio"}
+                    label="Crear año lectivo"
+                  />
+                </form>
+              </ConfigurationCard>
+            )}
+
+            {section === "pedagogia" && (
+              <ConfigurationCard
+                title="Modelo pedagógico"
+                description="Documenta el enfoque formativo y el tipo de valoración institucional."
+                icon={BookOpen}
+              >
+                <form className="configuration-form" onSubmit={savePedagogy}>
+                  <label className="field field--full">
+                    <span>Modelo pedagógico</span>
+                    <input
+                      value={pedagogicalModel}
+                      onChange={(event) =>
+                        setPedagogicalModel(event.target.value)
+                      }
+                      placeholder="Ej. Constructivista"
+                    />
+                  </label>
+                  <label className="field field--full">
+                    <span>Enfoque pedagógico</span>
+                    <textarea
+                      value={pedagogicalApproach}
+                      onChange={(event) =>
+                        setPedagogicalApproach(event.target.value)
+                      }
+                      placeholder="Describe los principios que orientan el proceso formativo."
+                      rows={4}
+                    />
+                  </label>
+                  <label className="field field--full">
+                    <span>Tipo de escala de valoración</span>
+                    <select
+                      value={scaleType}
+                      onChange={(event) => setScaleType(event.target.value)}
+                    >
+                      <option value="numerica">Numérica</option>
+                      <option value="cualitativa">Cualitativa</option>
+                      <option value="mixta">Mixta</option>
+                    </select>
+                  </label>
+                  <FormActions
+                    saving={saving === "pedagogia"}
+                    label="Guardar configuración"
+                  />
+                </form>
+              </ConfigurationCard>
+            )}
+
+            {section === "evaluacion" && (
+              <ConfigurationCard
+                title="Escalas de valoración"
+                description="Configura los niveles utilizados para interpretar el desempeño académico."
+                icon={TrendingUp}
+              >
+                <EntityList
+                  empty="No hay escalas de valoración registradas."
+                  items={escalas.map((scale) => ({
+                    id: scale.id,
+                    title: scale.nombre,
+                    detail: `${scale.niveles.length} niveles · ${capitalize(scale.tipo)}`,
+                    status: scale.activo ? "Activa" : "Inactiva",
+                  }))}
+                />
+                <form
+                  className="configuration-form configuration-form--divided"
+                  onSubmit={addScale}
+                >
+                  <div className="scale-form-heading">
+                    <h3>Nueva escala</h3>
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      onClick={() =>
+                        setScaleLevels((current) => [
+                          ...current,
+                          {
+                            id: `${Date.now()}-${current.length}`,
+                            codigo: "",
+                            nombre: "",
+                            valorMinimo: "",
+                            valorMaximo: "",
+                          },
+                        ])
+                      }
+                    >
+                      <Plus size={15} /> Agregar nivel
+                    </button>
+                  </div>
+                  <label className="field field--full">
+                    <span>Nombre de la escala</span>
+                    <input
+                      value={scaleName}
+                      onChange={(event) => setScaleName(event.target.value)}
+                      minLength={3}
+                      required
+                    />
+                  </label>
+                  <div className="scale-levels">
+                    {scaleLevels.map((level, index) => (
+                      <article className="scale-level" key={level.id}>
+                        <div className="scale-level__heading">
+                          <strong>Nivel {index + 1}</strong>
+                          <button
+                            type="button"
+                            aria-label={`Eliminar nivel ${index + 1}`}
+                            disabled={scaleLevels.length <= 2}
+                            onClick={() =>
+                              setScaleLevels((current) =>
+                                current.filter((item) => item.id !== level.id),
+                              )
+                            }
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                        <label className="field">
+                          <span>Nombre</span>
+                          <input
+                            value={level.nombre}
+                            onChange={(event) =>
+                              updateScaleLevel(
+                                level.id,
+                                "nombre",
+                                event.target.value,
+                              )
+                            }
+                            required
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Código</span>
+                          <CodeInput
+                            value={level.codigo}
+                            onChange={(value) =>
+                              updateScaleLevel(level.id, "codigo", value)
+                            }
+                            source={level.nombre}
+                            fallback="NIVEL"
+                            placeholder="Ej. ALTO"
+                          />
+                        </label>
+                        <div className="form-grid">
+                          <label className="field">
+                            <span>Valor mínimo</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={level.valorMinimo}
+                              onChange={(event) =>
+                                updateScaleLevel(
+                                  level.id,
+                                  "valorMinimo",
+                                  event.target.value,
+                                )
+                              }
+                              required
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Valor máximo</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={level.valorMaximo}
+                              onChange={(event) =>
+                                updateScaleLevel(
+                                  level.id,
+                                  "valorMaximo",
+                                  event.target.value,
+                                )
+                              }
+                              required
+                            />
+                          </label>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <FormActions
+                    saving={saving === "escala"}
+                    label="Crear escala de valoración"
+                  />
+                </form>
+              </ConfigurationCard>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConfigurationCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: typeof Settings2;
+  children: ReactNode;
+}) {
+  return (
+    <article className="panel configuration-card">
+      <header>
+        <span>
+          <Icon size={20} />
+        </span>
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </header>
+      {children}
+    </article>
+  );
+}
+
+function EntityList({
+  items,
+  empty,
+}: {
+  items: Array<{ id: string; title: string; detail: string; status: string }>;
+  empty: string;
+}) {
+  if (!items.length) return <p className="configuration-empty">{empty}</p>;
+  return (
+    <div className="configuration-entities">
+      {items.map((item) => (
+        <div key={item.id}>
+          <span>
+            <Check size={15} />
+          </span>
+          <div>
+            <strong>{item.title}</strong>
+            <small>{item.detail}</small>
+          </div>
+          <b>{item.status}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FormActions({ saving, label }: { saving: boolean; label: string }) {
+  return (
+    <div className="configuration-actions">
+      <button
+        className="button button--primary"
+        type="submit"
+        disabled={saving}
+      >
+        {saving ? (
+          "Guardando…"
+        ) : (
+          <>
+            <Save size={16} /> {label}
+          </>
+        )}
+      </button>
+    </div>
   );
 }
 
@@ -2056,6 +2895,17 @@ function PlaceholderPage({ type }: { type: "personal" | "academico" }) {
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+function actionError(caught: unknown) {
+  return caught instanceof Error
+    ? caught.message
+    : "No fue posible completar la operación";
+}
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
 }
 function generateCode(value: string, fallback: string) {
   const ignored = new Set(["DE", "DEL", "LA", "LAS", "EL", "LOS", "Y"]);

@@ -34,6 +34,48 @@ export interface InstitucionResponse {
   creadoEn?: string;
 }
 
+export interface SedeResponse {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+}
+
+export interface AnioLectivoResponse {
+  id: string;
+  codigo: string;
+  nombre?: string | null;
+  anio: number;
+  fechaInicio: string;
+  fechaFin: string;
+  estado: string;
+}
+
+export interface ConfiguracionInstitucionResponse {
+  id: string;
+  institucionId: string;
+  modeloPedagogico?: string | null;
+  enfoquePedagogico?: string | null;
+  tipoEscalaValoracion: string;
+}
+
+export interface NivelEscalaResponse {
+  id: string;
+  nombre: string;
+  etiquetaCorta?: string | null;
+  valorMinimo: string;
+  valorMaximo: string;
+  orden: number;
+}
+
+export interface EscalaValoracionResponse {
+  id: string;
+  nombre: string;
+  tipo: string;
+  activo: boolean;
+  niveles: NivelEscalaResponse[];
+}
+
 async function readApiResponse<T>(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
@@ -103,7 +145,9 @@ async function authenticatedRequest<T>(
   const payload = await readApiResponse<T>(response);
   if (!response.ok)
     throw apiError(payload, "No fue posible completar la solicitud");
-  return payload.data ?? (payload as unknown as T);
+  return Object.prototype.hasOwnProperty.call(payload, "data")
+    ? (payload.data as T)
+    : (payload as unknown as T);
 }
 
 export function getPersona(id: string, accessToken: string) {
@@ -143,6 +187,116 @@ export function crearSedePrincipal(
       method: "POST",
       body: JSON.stringify({ ...input, principal: true }),
     },
+  );
+}
+
+export function actualizarInstitucion(
+  institucionId: string,
+  input: { nombre: string; activo: boolean },
+  accessToken: string,
+) {
+  return authenticatedRequest<InstitucionResponse>(
+    `/instituciones/${institucionId}`,
+    accessToken,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function getSedes(institucionId: string, accessToken: string) {
+  return authenticatedRequest<SedeResponse[]>(
+    `/instituciones/${institucionId}/sedes`,
+    accessToken,
+  );
+}
+
+export function crearSede(
+  institucionId: string,
+  input: { codigo: string; nombre: string },
+  accessToken: string,
+) {
+  return authenticatedRequest<SedeResponse>(
+    `/instituciones/${institucionId}/sedes`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getAniosLectivos(institucionId: string, accessToken: string) {
+  return authenticatedRequest<AnioLectivoResponse[]>(
+    `/instituciones/${institucionId}/anios-lectivos`,
+    accessToken,
+  );
+}
+
+export function crearAnioLectivo(
+  institucionId: string,
+  input: { nombre: string; fechaInicio: string; fechaFin: string },
+  accessToken: string,
+) {
+  return authenticatedRequest<AnioLectivoResponse>(
+    `/instituciones/${institucionId}/anios-lectivos`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getConfiguracionInstitucion(
+  institucionId: string,
+  accessToken: string,
+) {
+  return authenticatedRequest<ConfiguracionInstitucionResponse | null>(
+    `/instituciones/${institucionId}/configuracion`,
+    accessToken,
+  );
+}
+
+export function guardarConfiguracionInstitucion(
+  institucionId: string,
+  input: {
+    modeloPedagogico: string;
+    enfoquePedagogico: string;
+    tipoEscalaValoracion: string;
+  },
+  accessToken: string,
+) {
+  return authenticatedRequest<ConfiguracionInstitucionResponse>(
+    `/instituciones/${institucionId}/configuracion`,
+    accessToken,
+    {
+      method: "PUT",
+      body: JSON.stringify({ configuracion: input }),
+    },
+  );
+}
+
+export function getEscalasValoracion(
+  institucionId: string,
+  accessToken: string,
+) {
+  return authenticatedRequest<EscalaValoracionResponse[]>(
+    `/instituciones/${institucionId}/escalas-valoracion`,
+    accessToken,
+  );
+}
+
+export function crearEscalaValoracion(
+  institucionId: string,
+  input: {
+    nombre: string;
+    niveles: Array<{
+      codigo: string;
+      nombre: string;
+      valorMinimo: string;
+      valorMaximo: string;
+      orden: number;
+    }>;
+  },
+  accessToken: string,
+) {
+  return authenticatedRequest<EscalaValoracionResponse[]>(
+    `/instituciones/${institucionId}/escalas-valoracion`,
+    accessToken,
+    { method: "POST", body: JSON.stringify(input) },
   );
 }
 
