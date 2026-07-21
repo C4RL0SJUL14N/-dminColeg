@@ -92,12 +92,21 @@ export interface AsignaturaResponse {
   activo: boolean;
 }
 
+export type NivelEducativo =
+  | "preescolar"
+  | "primaria"
+  | "secundaria"
+  | "media"
+  | "tecnica"
+  | "adultos"
+  | "otro";
+
 export interface GradoResponse {
   id: string;
   codigo: string;
   nombre: string;
   nombreCorto?: string | null;
-  nivelEducativo: string;
+  nivelEducativo: NivelEducativo;
   orden: number;
   activo: boolean;
 }
@@ -410,7 +419,7 @@ export function crearGrado(
     codigo: string;
     nombre: string;
     nombreCorto?: string;
-    nivelEducativo: string;
+    nivelEducativo: NivelEducativo;
     orden: number;
   },
   accessToken: string,

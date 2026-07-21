@@ -1,11 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 import { setAuditAfterState, setAuditEntityId } from '@libs/audit';
 import { JwtPayload } from '@libs/common';
 import {
@@ -110,19 +111,38 @@ export class AcademicStructureService {
 
   async createGrado(institucionId: string, dto: CrearGradoDto) {
     await this.findInstitucionById(institucionId);
-    const grado = await this.gradosRepository.save(
-      this.gradosRepository.create({
-        institucionId,
-        codigo: dto.codigo,
-        nombre: dto.nombre,
-        nombreCorto: dto.nombreCorto ?? null,
-        nivelEducativo: dto.nivelEducativo,
-        orden: dto.orden,
-        activo: true,
-        eliminadoEn: null,
-        version: 1,
-      }),
-    );
+    let grado: Grado;
+    try {
+      grado = await this.gradosRepository.save(
+        this.gradosRepository.create({
+          institucionId,
+          codigo: dto.codigo,
+          nombre: dto.nombre,
+          nombreCorto: dto.nombreCorto ?? null,
+          nivelEducativo: dto.nivelEducativo,
+          orden: dto.orden,
+          activo: true,
+          eliminadoEn: null,
+          version: 1,
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23505'
+      ) {
+        const constraint = (error.driverError as { constraint?: string })
+          .constraint;
+        const message =
+          constraint === 'uq_grados_nombre'
+            ? 'Ya existe un grado con ese nombre en la institución'
+            : constraint === 'uq_grados_orden'
+              ? 'Ya existe un grado con ese orden en la institución'
+              : 'Ya existe un grado con ese código';
+        throw new ConflictException(message);
+      }
+      throw error;
+    }
     setAuditEntityId(grado.id);
     setAuditAfterState(grado);
     return grado;

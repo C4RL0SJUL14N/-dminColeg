@@ -34,6 +34,7 @@ import {
   GrupoResponse,
   InstitucionResponse,
   JornadaResponse,
+  NivelEducativo,
   SedeResponse,
 } from "./api";
 
@@ -77,7 +78,7 @@ export function AcademicStructurePage({
   const [gradeName, setGradeName] = useState("");
   const [gradeCode, setGradeCode] = useState("");
   const [gradeShortName, setGradeShortName] = useState("");
-  const [gradeLevel, setGradeLevel] = useState("basica_primaria");
+  const [gradeLevel, setGradeLevel] = useState<NivelEducativo>("primaria");
   const [gradeOrder, setGradeOrder] = useState("1");
   const [scheduleName, setScheduleName] = useState("");
   const [scheduleCode, setScheduleCode] = useState("");
@@ -645,12 +646,17 @@ export function AcademicStructurePage({
                 <Field label="Nivel educativo">
                   <select
                     value={gradeLevel}
-                    onChange={(event) => setGradeLevel(event.target.value)}
+                    onChange={(event) =>
+                      setGradeLevel(event.target.value as NivelEducativo)
+                    }
                   >
                     <option value="preescolar">Preescolar</option>
-                    <option value="basica_primaria">Básica primaria</option>
-                    <option value="basica_secundaria">Básica secundaria</option>
+                    <option value="primaria">Básica primaria</option>
+                    <option value="secundaria">Básica secundaria</option>
                     <option value="media">Media</option>
+                    <option value="tecnica">Técnica</option>
+                    <option value="adultos">Educación para adultos</option>
+                    <option value="otro">Otro</option>
                   </select>
                 </Field>
               </AcademicForm>
