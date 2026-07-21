@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   MetodoAutenticacionUsuario,
+  Institucion,
   PerfilUsuario,
   Permiso,
   ProveedorAutenticacion,
@@ -20,6 +21,7 @@ import { AuthService } from './auth.service';
   imports: [
     TypeOrmModule.forFeature([
       MetodoAutenticacionUsuario,
+      Institucion,
       PerfilUsuario,
       Permiso,
       ProveedorAutenticacion,

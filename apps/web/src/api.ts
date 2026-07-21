@@ -260,13 +260,24 @@ export function crearSedePrincipal(
 
 export function actualizarInstitucion(
   institucionId: string,
-  input: { nombre: string; activo: boolean },
+  input: { nombre?: string; activo?: boolean },
   accessToken: string,
 ) {
   return authenticatedRequest<InstitucionResponse>(
     `/instituciones/${institucionId}`,
     accessToken,
     { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function eliminarInstitucion(
+  institucionId: string,
+  accessToken: string,
+) {
+  return authenticatedRequest<InstitucionResponse>(
+    `/instituciones/${institucionId}`,
+    accessToken,
+    { method: "DELETE" },
   );
 }
 

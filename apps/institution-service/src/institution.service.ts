@@ -78,17 +78,26 @@ export class InstitutionService {
 
   findInstituciones(currentUser: JwtPayload) {
     if (currentUser.superadministrador) {
-      return this.institucionesRepository.find({ order: { nombre: 'ASC' } });
+      return this.institucionesRepository.find({
+        where: { eliminadoEn: IsNull() },
+        order: { nombre: 'ASC' },
+      });
     }
 
     return this.institucionesRepository.find({
-      where: { id: currentUser.institucionId ?? undefined },
+      where: {
+        id: currentUser.institucionId ?? undefined,
+        eliminadoEn: IsNull(),
+      },
       order: { nombre: 'ASC' },
     });
   }
 
   async findInstitucionById(id: string) {
-    const institucion = await this.institucionesRepository.findOneBy({ id });
+    const institucion = await this.institucionesRepository.findOneBy({
+      id,
+      eliminadoEn: IsNull(),
+    });
     if (!institucion) {
       throw new NotFoundException('Institucion no encontrada');
     }
@@ -100,10 +109,24 @@ export class InstitutionService {
     const institucion = await this.findInstitucionById(id);
     setAuditEntityId(id);
     setAuditBeforeState(institucion);
-    Object.assign(institucion, dto);
+    if (dto.nombre !== undefined) institucion.nombre = dto.nombre.trim();
+    if (dto.activo !== undefined) institucion.activo = dto.activo;
+    institucion.version += 1;
     const updated = await this.institucionesRepository.save(institucion);
     setAuditAfterState(updated);
     return updated;
+  }
+
+  async deleteInstitucion(id: string) {
+    const institucion = await this.findInstitucionById(id);
+    setAuditEntityId(id);
+    setAuditBeforeState(institucion);
+    institucion.activo = false;
+    institucion.eliminadoEn = new Date();
+    institucion.version += 1;
+    const deleted = await this.institucionesRepository.save(institucion);
+    setAuditAfterState(deleted);
+    return deleted;
   }
 
   async createSede(institucionId: string, dto: CrearSedeDto) {

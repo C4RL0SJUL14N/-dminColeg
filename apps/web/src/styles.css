@@ -1091,6 +1091,36 @@ td {
   padding: 7px 11px;
   font-size: 0.7rem;
 }
+.institution-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.institution-icon-action {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d9e3df;
+  border-radius: 9px;
+  color: #397d70;
+  background: white;
+}
+.institution-icon-action:hover:not(:disabled) {
+  border-color: #8fb5ad;
+  background: #edf5f2;
+}
+.institution-icon-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.institution-icon-action--delete {
+  color: #a94747;
+}
+.institution-icon-action--delete:hover:not(:disabled) {
+  border-color: #dfb4b4;
+  background: #fff1f1;
+}
 .institution-state,
 .institution-empty {
   display: grid;
@@ -2508,9 +2538,11 @@ td {
     justify-self: start;
   }
   .institution-action {
+    padding-inline: 8px;
+  }
+  .institution-row__actions {
     grid-column: 3;
     grid-row: 1 / span 2;
-    padding-inline: 8px;
   }
   .institution-action svg {
     display: none;

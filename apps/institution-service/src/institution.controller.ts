@@ -89,6 +89,23 @@ export class InstitutionController {
     return this.institutionService.updateInstitucion(id, dto);
   }
 
+  @Roles(ROLE_SUPERADMIN)
+  @Delete('instituciones/:id')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'institucion',
+    entidadIdParam: 'id',
+    accion: 'eliminar-institucion',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
+  deleteInstitucion(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.institutionService.deleteInstitucion(id);
+  }
+
   @InstitutionScoped({ param: 'id' })
   @Post('instituciones/:id/sedes')
   @Audit({

@@ -9,12 +9,17 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomUUID } from 'crypto';
 import { Request } from 'express';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { PasswordService, TokenService } from '@libs/auth';
-import { mergeAuditMetadata, setAuditAfterState, setAuditEntityId } from '@libs/audit';
+import {
+  mergeAuditMetadata,
+  setAuditAfterState,
+  setAuditEntityId,
+} from '@libs/audit';
 import { JwtPayload } from '@libs/common';
 import {
   MetodoAutenticacionUsuario,
+  Institucion,
   PerfilUsuario,
   Permiso,
   ProveedorAutenticacion,
@@ -38,6 +43,8 @@ import {
 @Injectable()
 export class AuthService {
   constructor(
+    @InjectRepository(Institucion)
+    private readonly institucionesRepository: Repository<Institucion>,
     @InjectRepository(Usuario)
     private readonly usuariosRepository: Repository<Usuario>,
     @InjectRepository(MetodoAutenticacionUsuario)
@@ -66,15 +73,22 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto, request: Request) {
-    const usuario = await this.resolveUsuarioParaLogin(dto.correo, dto.institucionId);
+    const usuario = await this.resolveUsuarioParaLogin(
+      dto.correo,
+      dto.institucionId,
+    );
     setAuditEntityId(usuario.id);
     mergeAuditMetadata({ correo: dto.correo });
     if (usuario.bloqueadoHasta && usuario.bloqueadoHasta > new Date()) {
-      throw new ForbiddenException('Usuario temporalmente bloqueado por intentos fallidos');
+      throw new ForbiddenException(
+        'Usuario temporalmente bloqueado por intentos fallidos',
+      );
     }
 
     if (!usuario.hashContrasena) {
-      throw new UnauthorizedException('El usuario no tiene autenticacion local habilitada');
+      throw new UnauthorizedException(
+        'El usuario no tiene autenticacion local habilitada',
+      );
     }
 
     const validPassword = await this.passwordService.compare(
@@ -86,6 +100,8 @@ export class AuthService {
       await this.registrarIntentoFallidoUsuario(usuario);
       throw new UnauthorizedException('Credenciales invalidas');
     }
+
+    await this.assertInstitucionActiva(usuario.institucionId);
 
     usuario.intentosFallidosInicio = 0;
     usuario.bloqueadoHasta = null;
@@ -125,11 +141,18 @@ export class AuthService {
       };
     }
 
-    return this.emitirSesion(usuario, contexto, perfilSeleccionado?.id ?? null, request);
+    return this.emitirSesion(
+      usuario,
+      contexto,
+      perfilSeleccionado?.id ?? null,
+      request,
+    );
   }
 
   async refresh(dto: RefreshTokenDto, request: Request) {
-    const payload = await this.tokenService.verifyRefreshToken(dto.refreshToken);
+    const payload = await this.tokenService.verifyRefreshToken(
+      dto.refreshToken,
+    );
     setAuditEntityId(payload.usuarioId);
     const sesion = await this.sesionesRepository.findOne({
       where: { id: payload.sessionId, usuarioId: payload.usuarioId },
@@ -144,13 +167,18 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token invalido');
     }
 
+    await this.assertInstitucionActiva(payload.institucionId);
+
     const contexto = await this.resolveContextoAcceso(payload.usuarioId);
     return this.emitirSesionDesdePayload(payload, contexto, request, sesion.id);
   }
 
   async logout(currentUser: JwtPayload, dto: LogoutDto) {
     setAuditEntityId(currentUser.usuarioId);
-    mergeAuditMetadata({ sessionId: currentUser.sessionId, tieneRefreshToken: Boolean(dto.refreshToken) });
+    mergeAuditMetadata({
+      sessionId: currentUser.sessionId,
+      tieneRefreshToken: Boolean(dto.refreshToken),
+    });
     const sessionId = currentUser.sessionId;
     const sesion = await this.sesionesRepository.findOne({
       where: { id: sessionId, usuarioId: currentUser.usuarioId },
@@ -166,11 +194,16 @@ export class AuthService {
   }
 
   async solicitarRecuperacion(dto: SolicitarRecuperacionDto) {
-    const usuario = await this.resolveUsuarioParaLogin(dto.correo, dto.institucionId);
+    const usuario = await this.resolveUsuarioParaLogin(
+      dto.correo,
+      dto.institucionId,
+    );
     setAuditEntityId(usuario.id);
     const tokenPlano = randomUUID();
     const tokenHash = await this.passwordService.hash(tokenPlano);
-    const ttlMinutes = Number(this.configService.get('PASSWORD_RESET_TTL_MINUTES', '30'));
+    const ttlMinutes = Number(
+      this.configService.get('PASSWORD_RESET_TTL_MINUTES', '30'),
+    );
 
     await this.tokensRecuperacionRepository.save(
       this.tokensRecuperacionRepository.create({
@@ -197,13 +230,23 @@ export class AuthService {
     });
 
     const tokenEntity = await this.findMatchingRecoveryToken(tokens, dto.token);
-    if (!tokenEntity || tokenEntity.usadoAt || tokenEntity.expiraAt < new Date()) {
-      throw new BadRequestException('Token de recuperacion invalido o expirado');
+    if (
+      !tokenEntity ||
+      tokenEntity.usadoAt ||
+      tokenEntity.expiraAt < new Date()
+    ) {
+      throw new BadRequestException(
+        'Token de recuperacion invalido o expirado',
+      );
     }
 
-    const usuario = await this.usuariosRepository.findOneByOrFail({ id: tokenEntity.usuarioId });
+    const usuario = await this.usuariosRepository.findOneByOrFail({
+      id: tokenEntity.usuarioId,
+    });
     setAuditEntityId(usuario.id);
-    usuario.hashContrasena = await this.passwordService.hash(dto.nuevaContrasena);
+    usuario.hashContrasena = await this.passwordService.hash(
+      dto.nuevaContrasena,
+    );
     usuario.intentosFallidosInicio = 0;
     usuario.bloqueadoHasta = null;
     usuario.debeCambiarContrasena = false;
@@ -217,8 +260,14 @@ export class AuthService {
     return { restablecida: true };
   }
 
-  async cambiarContrasenaInicial(dto: CambiarContrasenaInicialDto, request: Request) {
-    const usuario = await this.resolveUsuarioParaLogin(dto.correo, dto.institucionId);
+  async cambiarContrasenaInicial(
+    dto: CambiarContrasenaInicialDto,
+    request: Request,
+  ) {
+    const usuario = await this.resolveUsuarioParaLogin(
+      dto.correo,
+      dto.institucionId,
+    );
     setAuditEntityId(usuario.id);
     if (!usuario.hashContrasena) {
       throw new UnauthorizedException('Metodo local no configurado');
@@ -232,7 +281,9 @@ export class AuthService {
       throw new UnauthorizedException('La contrasena actual no coincide');
     }
 
-    usuario.hashContrasena = await this.passwordService.hash(dto.nuevaContrasena);
+    usuario.hashContrasena = await this.passwordService.hash(
+      dto.nuevaContrasena,
+    );
     usuario.intentosFallidosInicio = 0;
     usuario.bloqueadoHasta = null;
     usuario.debeCambiarContrasena = false;
@@ -241,9 +292,16 @@ export class AuthService {
 
     const contexto = await this.resolveContextoAcceso(usuario.id);
     const perfilSeleccionado =
-      contexto.perfiles.find((perfil) => perfil.predeterminado) ?? contexto.perfiles[0] ?? null;
+      contexto.perfiles.find((perfil) => perfil.predeterminado) ??
+      contexto.perfiles[0] ??
+      null;
 
-    return this.emitirSesion(usuario, contexto, perfilSeleccionado?.id ?? null, request);
+    return this.emitirSesion(
+      usuario,
+      contexto,
+      perfilSeleccionado?.id ?? null,
+      request,
+    );
   }
 
   async listarSesiones(currentUser: JwtPayload) {
@@ -254,7 +312,9 @@ export class AuthService {
   }
 
   async resolveContextoAcceso(usuarioId: string) {
-    const usuario = await this.usuariosRepository.findOne({ where: { id: usuarioId } });
+    const usuario = await this.usuariosRepository.findOne({
+      where: { id: usuarioId },
+    });
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
     }
@@ -275,7 +335,9 @@ export class AuthService {
           where: rolIds.map((rolId) => ({ rolId })),
         })
       : [];
-    const permisoIds = [...new Set(rolesPermisos.map((item) => item.permisoId))];
+    const permisoIds = [
+      ...new Set(rolesPermisos.map((item) => item.permisoId)),
+    ];
     const permisos = permisoIds.length
       ? await this.permisosRepository.findByIds(permisoIds)
       : [];
@@ -283,10 +345,12 @@ export class AuthService {
     return {
       usuarioId: usuario.id,
       institucionId: usuario.institucionId,
-        personaId: usuario.personaId,
-        superadministrador:
-          usuario.institucionId === null ||
-        roles.some((rolUsuario) => rolUsuario.rol.codigo === 'superadministrador'),
+      personaId: usuario.personaId,
+      superadministrador:
+        usuario.institucionId === null ||
+        roles.some(
+          (rolUsuario) => rolUsuario.rol.codigo === 'superadministrador',
+        ),
       perfiles: perfiles.map((perfil) => ({
         id: perfil.id,
         codigo: perfil.tipoPerfil.codigo,
@@ -302,21 +366,29 @@ export class AuthService {
     };
   }
 
-  private async resolveUsuarioParaLogin(correo: string, institucionId?: string) {
+  private async resolveUsuarioParaLogin(
+    correo: string,
+    institucionId?: string,
+  ) {
     const usuarios = await this.usuariosRepository.find({
       where: { correo },
     });
 
     if (!usuarios.length) {
-      throw new UnauthorizedException('No existe un usuario activo con ese correo');
+      throw new UnauthorizedException(
+        'No existe un usuario activo con ese correo',
+      );
     }
 
     if (institucionId) {
       const usuario = usuarios.find(
-        (item) => item.institucionId === institucionId && item.estado === 'activo',
+        (item) =>
+          item.institucionId === institucionId && item.estado === 'activo',
       );
       if (!usuario) {
-        throw new UnauthorizedException('El usuario no pertenece a la institucion indicada');
+        throw new UnauthorizedException(
+          'El usuario no pertenece a la institucion indicada',
+        );
       }
       return usuario;
     }
@@ -329,10 +401,24 @@ export class AuthService {
 
     const activo = usuarios.find((item) => item.estado === 'activo');
     if (!activo) {
-      throw new UnauthorizedException('No existe un usuario activo con ese correo');
+      throw new UnauthorizedException(
+        'No existe un usuario activo con ese correo',
+      );
     }
 
     return activo;
+  }
+
+  private async assertInstitucionActiva(institucionId: string | null) {
+    if (!institucionId) return;
+    const institucion = await this.institucionesRepository.findOneBy({
+      id: institucionId,
+      activo: true,
+      eliminadoEn: IsNull(),
+    });
+    if (!institucion) {
+      throw new ForbiddenException('La institución no está activa');
+    }
   }
 
   private async obtenerMetodoLocal(usuarioId: string) {
@@ -352,7 +438,9 @@ export class AuthService {
     });
 
     if (!metodo) {
-      throw new NotFoundException('Metodo de autenticacion local no encontrado');
+      throw new NotFoundException(
+        'Metodo de autenticacion local no encontrado',
+      );
     }
 
     return metodo;
@@ -360,7 +448,9 @@ export class AuthService {
 
   private async registrarIntentoFallidoUsuario(usuario: Usuario) {
     usuario.intentosFallidosInicio += 1;
-    const maxIntentos = Number(this.configService.get('AUTH_MAX_FAILED_ATTEMPTS', '5'));
+    const maxIntentos = Number(
+      this.configService.get('AUTH_MAX_FAILED_ATTEMPTS', '5'),
+    );
     if (usuario.intentosFallidosInicio >= maxIntentos) {
       usuario.bloqueadoHasta = new Date(Date.now() + 15 * 60_000);
       usuario.intentosFallidosInicio = 0;
@@ -375,7 +465,9 @@ export class AuthService {
     if (perfilIdSeleccionado) {
       const perfil = perfiles.find((item) => item.id === perfilIdSeleccionado);
       if (!perfil) {
-        throw new BadRequestException('El perfil seleccionado no pertenece al usuario');
+        throw new BadRequestException(
+          'El perfil seleccionado no pertenece al usuario',
+        );
       }
       return perfil;
     }
@@ -401,13 +493,14 @@ export class AuthService {
       personaId: usuario.personaId,
       perfilIdSeleccionado,
       perfilCodigoSeleccionado:
-        contexto.perfiles.find((perfil) => perfil.id === perfilIdSeleccionado)?.codigo ?? null,
-        roles: contexto.roles.map((rol) => rol.codigo),
-        superadministrador:
-          usuario.institucionId === null ||
+        contexto.perfiles.find((perfil) => perfil.id === perfilIdSeleccionado)
+          ?.codigo ?? null,
+      roles: contexto.roles.map((rol) => rol.codigo),
+      superadministrador:
+        usuario.institucionId === null ||
         contexto.roles.some((rol) => rol.codigo === 'superadministrador'),
-        sessionId,
-      };
+      sessionId,
+    };
 
     const accessToken = await this.tokenService.generateAccessToken(payload);
     const refreshToken = await this.tokenService.generateRefreshToken(payload);
@@ -448,9 +541,12 @@ export class AuthService {
       refreshToken,
       contextoAcceso: contexto,
       perfilPredeterminado:
-        contexto.perfiles.find((perfil) => perfil.id === perfilIdSeleccionado) ?? null,
+        contexto.perfiles.find(
+          (perfil) => perfil.id === perfilIdSeleccionado,
+        ) ?? null,
       googleLogin: {
-        habilitado: this.configService.get('GOOGLE_OIDC_ENABLED', 'false') === 'true',
+        habilitado:
+          this.configService.get('GOOGLE_OIDC_ENABLED', 'false') === 'true',
         issuer: this.configService.get('GOOGLE_OIDC_ISSUER'),
       },
     };
@@ -463,14 +559,20 @@ export class AuthService {
     sessionId: string,
   ) {
     const nextPayload: JwtPayload = { ...payload, sessionId };
-    const accessToken = await this.tokenService.generateAccessToken(nextPayload);
-    const refreshToken = await this.tokenService.generateRefreshToken(nextPayload);
+    const accessToken =
+      await this.tokenService.generateAccessToken(nextPayload);
+    const refreshToken =
+      await this.tokenService.generateRefreshToken(nextPayload);
 
-    const sesion = await this.sesionesRepository.findOneByOrFail({ id: sessionId });
+    const sesion = await this.sesionesRepository.findOneByOrFail({
+      id: sessionId,
+    });
     sesion.identificadorTokenAcceso = this.hashToken(accessToken);
     sesion.identificadorTokenRefresco = this.hashToken(refreshToken);
     sesion.ip = request.ip ?? sesion.ip;
-    sesion.agenteUsuario = String(request.headers['user-agent'] ?? sesion.agenteUsuario ?? '');
+    sesion.agenteUsuario = String(
+      request.headers['user-agent'] ?? sesion.agenteUsuario ?? '',
+    );
     sesion.ultimaActividadEn = new Date();
     await this.sesionesRepository.save(sesion);
 
@@ -491,7 +593,10 @@ export class AuthService {
     rawToken: string,
   ) {
     for (const token of candidates) {
-      const matches = await this.passwordService.compare(rawToken, token.tokenHash);
+      const matches = await this.passwordService.compare(
+        rawToken,
+        token.tokenHash,
+      );
       if (matches) {
         return token;
       }

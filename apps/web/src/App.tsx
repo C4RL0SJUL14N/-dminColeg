@@ -47,6 +47,7 @@ import {
   crearSedePrincipal,
   eliminarAnioLectivo,
   eliminarEscalaValoracion,
+  eliminarInstitucion,
   eliminarSede,
   EscalaValoracionResponse,
   getAniosLectivos,
@@ -697,6 +698,9 @@ function InstitutionsPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [savingInstitutionId, setSavingInstitutionId] = useState<string | null>(
+    null,
+  );
   const [selectedInstitution, setSelectedInstitution] =
     useState<InstitucionResponse | null>(null);
 
@@ -739,6 +743,51 @@ function InstitutionsPage({
         .map((item) => (item.id === institution.id ? institution : item))
         .sort((left, right) => left.nombre.localeCompare(right.nombre)),
     );
+  }
+
+  async function toggleInstitution(institution: InstitucionResponse) {
+    setSavingInstitutionId(institution.id);
+    setError("");
+    try {
+      const result = await actualizarInstitucion(
+        institution.id,
+        { activo: !institution.activo },
+        accessToken,
+      );
+      setInstitutions((current) =>
+        current.map((item) => (item.id === result.id ? result : item)),
+      );
+      onToast(
+        result.activo ? "Institución activada" : "Institución desactivada",
+      );
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSavingInstitutionId(null);
+    }
+  }
+
+  async function removeInstitution(institution: InstitucionResponse) {
+    if (
+      !window.confirm(
+        `¿Eliminar la institución "${institution.nombre}"? Se conservarán todas sus referencias históricas.`,
+      )
+    ) {
+      return;
+    }
+    setSavingInstitutionId(institution.id);
+    setError("");
+    try {
+      await eliminarInstitucion(institution.id, accessToken);
+      setInstitutions((current) =>
+        current.filter((item) => item.id !== institution.id),
+      );
+      onToast("Institución eliminada correctamente");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSavingInstitutionId(null);
+    }
   }
 
   if (selectedInstitution) {
@@ -849,12 +898,39 @@ function InstitutionsPage({
                 >
                   {institution.activo ? "Activa" : "Inactiva"}
                 </span>
-                <button
-                  className="button button--secondary institution-action"
-                  onClick={() => setSelectedInstitution(institution)}
-                >
-                  Configurar <ArrowRight size={15} />
-                </button>
+                <div className="institution-row__actions">
+                  <button
+                    className="button button--secondary institution-action"
+                    disabled={savingInstitutionId === institution.id}
+                    onClick={() => setSelectedInstitution(institution)}
+                  >
+                    <Pencil size={14} /> Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="institution-icon-action"
+                    title={
+                      institution.activo
+                        ? "Desactivar institución"
+                        : "Activar institución"
+                    }
+                    aria-label={`${institution.activo ? "Desactivar" : "Activar"} ${institution.nombre}`}
+                    disabled={savingInstitutionId === institution.id}
+                    onClick={() => void toggleInstitution(institution)}
+                  >
+                    <Power size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="institution-icon-action institution-icon-action--delete"
+                    title="Eliminar institución"
+                    aria-label={`Eliminar ${institution.nombre}`}
+                    disabled={savingInstitutionId === institution.id}
+                    onClick={() => void removeInstitution(institution)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </article>
             ))}
           </div>
