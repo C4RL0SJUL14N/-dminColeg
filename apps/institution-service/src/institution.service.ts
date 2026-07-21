@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -23,6 +24,8 @@ import {
   Sede,
 } from '@libs/database';
 import {
+  ActualizarAnioLectivoDto,
+  ActualizarEscalaValoracionDto,
   ActualizarInstitucionDto,
   ActualizarSedeDto,
   ConfiguracionInstitucionDto,
@@ -169,19 +172,26 @@ export class InstitutionService {
 
   async createAnioLectivo(institucionId: string, dto: CrearAnioLectivoDto) {
     await this.findInstitucionById(institucionId);
-    const anio = await this.aniosLectivosRepository.save(
-      this.aniosLectivosRepository.create({
-        codigo: randomUUID().slice(0, 8),
-        institucionId,
-        nombre: dto.nombre,
-        anio: new Date(dto.fechaInicio).getUTCFullYear(),
-        fechaInicio: dto.fechaInicio,
-        fechaFin: dto.fechaFin,
-        estado: 'activo',
-        eliminadoEn: null,
-        version: 1,
-      }),
-    );
+    this.assertAnioLectivoDates(dto.fechaInicio, dto.fechaFin);
+    let anio: AnioLectivo;
+    try {
+      anio = await this.aniosLectivosRepository.save(
+        this.aniosLectivosRepository.create({
+          codigo: randomUUID().slice(0, 8),
+          institucionId,
+          nombre: dto.nombre.trim(),
+          anio: new Date(dto.fechaInicio).getUTCFullYear(),
+          fechaInicio: dto.fechaInicio,
+          fechaFin: dto.fechaFin,
+          estado: 'activo',
+          eliminadoEn: null,
+          version: 1,
+        }),
+      );
+    } catch (error) {
+      this.handleAnioLectivoUniqueError(error);
+      throw error;
+    }
     setAuditEntityId(anio.id);
     setAuditAfterState(anio);
     return anio;
@@ -189,9 +199,72 @@ export class InstitutionService {
 
   findAniosLectivos(institucionId: string) {
     return this.aniosLectivosRepository.find({
-      where: { institucionId },
+      where: { institucionId, eliminadoEn: IsNull() },
       order: { fechaInicio: 'DESC' },
     });
+  }
+
+  async updateAnioLectivo(
+    institucionId: string,
+    anioId: string,
+    dto: ActualizarAnioLectivoDto,
+  ) {
+    const anio = await this.findAnioLectivoInstitucion(institucionId, anioId);
+    if (anio.estado === 'cerrado') {
+      throw new ConflictException(
+        'Un año lectivo cerrado no puede modificarse',
+      );
+    }
+
+    const fechaInicio = dto.fechaInicio ?? anio.fechaInicio;
+    const fechaFin = dto.fechaFin ?? anio.fechaFin;
+    this.assertAnioLectivoDates(fechaInicio, fechaFin);
+    if (dto.fechaInicio !== undefined || dto.fechaFin !== undefined) {
+      const periodosFueraDeRango = await this.periodosRepository
+        .createQueryBuilder('periodo')
+        .where('periodo.anioLectivoId = :anioId', { anioId })
+        .andWhere('periodo.eliminadoEn IS NULL')
+        .andWhere(
+          '(periodo.fechaInicio < :fechaInicio OR periodo.fechaFin > :fechaFin)',
+          { fechaInicio, fechaFin },
+        )
+        .getCount();
+      if (periodosFueraDeRango > 0) {
+        throw new BadRequestException(
+          'Las fechas deben contener todos los períodos académicos existentes',
+        );
+      }
+    }
+    setAuditEntityId(anio.id);
+    setAuditBeforeState(anio);
+    if (dto.nombre !== undefined) anio.nombre = dto.nombre.trim();
+    if (dto.fechaInicio !== undefined) {
+      anio.fechaInicio = dto.fechaInicio;
+      anio.anio = new Date(dto.fechaInicio).getUTCFullYear();
+    }
+    if (dto.fechaFin !== undefined) anio.fechaFin = dto.fechaFin;
+    if (dto.estado !== undefined) anio.estado = dto.estado;
+    anio.version += 1;
+
+    try {
+      const updated = await this.aniosLectivosRepository.save(anio);
+      setAuditAfterState(updated);
+      return updated;
+    } catch (error) {
+      this.handleAnioLectivoUniqueError(error);
+      throw error;
+    }
+  }
+
+  async deleteAnioLectivo(institucionId: string, anioId: string) {
+    const anio = await this.findAnioLectivoInstitucion(institucionId, anioId);
+    setAuditEntityId(anio.id);
+    setAuditBeforeState(anio);
+    anio.eliminadoEn = new Date();
+    anio.version += 1;
+    const deleted = await this.aniosLectivosRepository.save(anio);
+    setAuditAfterState(deleted);
+    return deleted;
   }
 
   async createPeriodo(
@@ -302,6 +375,7 @@ export class InstitutionService {
     dto: CrearEscalaValoracionDto,
   ) {
     await this.findInstitucionById(institucionId);
+    this.assertEscalaNiveles(dto.niveles);
     const nombre = dto.nombre.trim();
     const existente = await this.escalasRepository.findOne({
       where: { institucionId, nombre },
@@ -358,6 +432,106 @@ export class InstitutionService {
     return this.findEscalasValoracion(institucionId);
   }
 
+  async updateEscalaValoracion(
+    institucionId: string,
+    escalaId: string,
+    dto: ActualizarEscalaValoracionDto,
+  ) {
+    const escala = await this.findEscalaValoracionById(institucionId, escalaId);
+    const nivelesAntes = await this.nivelesRepository.find({
+      where: { escalaValoracionId: escalaId },
+      order: { orden: 'ASC' },
+    });
+    setAuditEntityId(escala.id);
+    setAuditBeforeState({ ...escala, niveles: nivelesAntes });
+    if (dto.niveles) this.assertEscalaNiveles(dto.niveles);
+
+    try {
+      await this.escalasRepository.manager.transaction(async (manager) => {
+        if (dto.nombre !== undefined) escala.nombre = dto.nombre.trim();
+        if (dto.activo !== undefined) escala.activo = dto.activo;
+
+        if (dto.niveles) {
+          const existentes = await manager.find(NivelEscalaValoracion, {
+            where: { escalaValoracionId: escalaId },
+          });
+          const porId = new Map(existentes.map((nivel) => [nivel.id, nivel]));
+          const conservados = new Set<string>();
+          const actualizados = dto.niveles.map((nivel) => {
+            const codigo = nivel.codigo.trim().toUpperCase();
+            if (!nivel.id) {
+              return manager.create(NivelEscalaValoracion, {
+                escalaValoracionId: escalaId,
+                nombre: nivel.nombre.trim(),
+                etiquetaCorta: codigo,
+                valorMinimo: nivel.valorMinimo,
+                valorMaximo: nivel.valorMaximo,
+                orden: nivel.orden,
+                colorHex: null,
+              });
+            }
+
+            const existente = porId.get(nivel.id);
+            if (!existente) {
+              throw new BadRequestException(
+                'Uno de los niveles no pertenece a la escala de valoración',
+              );
+            }
+            if (existente.etiquetaCorta !== codigo) {
+              throw new BadRequestException(
+                'Los códigos de los niveles no pueden modificarse',
+              );
+            }
+            conservados.add(existente.id);
+            existente.nombre = nivel.nombre.trim();
+            existente.valorMinimo = nivel.valorMinimo;
+            existente.valorMaximo = nivel.valorMaximo;
+            existente.orden = nivel.orden;
+            return existente;
+          });
+
+          const eliminados = existentes.filter(
+            (nivel) => !conservados.has(nivel.id),
+          );
+          if (eliminados.length) await manager.remove(eliminados);
+          await manager.save(NivelEscalaValoracion, actualizados);
+
+          const ordenados = [...dto.niveles].sort(
+            (left, right) => left.orden - right.orden,
+          );
+          escala.valorMinimo = ordenados[0]?.valorMinimo ?? null;
+          escala.valorMaximo =
+            ordenados[ordenados.length - 1]?.valorMaximo ?? null;
+        }
+
+        await manager.save(EscalaValoracion, escala);
+      });
+    } catch (error) {
+      this.handleEscalaValoracionUniqueError(
+        error,
+        dto.nombre ?? escala.nombre,
+      );
+      throw error;
+    }
+
+    const result = await this.findEscalasValoracion(institucionId);
+    setAuditAfterState(result.find((item) => item.id === escalaId));
+    return result;
+  }
+
+  async deleteEscalaValoracion(institucionId: string, escalaId: string) {
+    const escala = await this.findEscalaValoracionById(institucionId, escalaId);
+    const niveles = await this.nivelesRepository.find({
+      where: { escalaValoracionId: escalaId },
+      order: { orden: 'ASC' },
+    });
+    setAuditEntityId(escala.id);
+    setAuditBeforeState({ ...escala, niveles });
+    await this.escalasRepository.remove(escala);
+    setAuditAfterState({ id: escalaId, eliminado: true });
+    return this.findEscalasValoracion(institucionId);
+  }
+
   async findEscalasValoracion(institucionId: string) {
     const escalas = await this.escalasRepository.find({
       where: { institucionId },
@@ -374,6 +548,88 @@ export class InstitutionService {
     }
 
     return result;
+  }
+
+  private async findAnioLectivoInstitucion(
+    institucionId: string,
+    anioId: string,
+  ) {
+    const anio = await this.aniosLectivosRepository.findOneBy({
+      id: anioId,
+      institucionId,
+      eliminadoEn: IsNull(),
+    });
+    if (!anio) {
+      throw new NotFoundException('Año lectivo no encontrado');
+    }
+    return anio;
+  }
+
+  private assertAnioLectivoDates(fechaInicio: string, fechaFin: string) {
+    if (fechaInicio >= fechaFin) {
+      throw new BadRequestException(
+        'La fecha de finalización debe ser posterior a la fecha de inicio',
+      );
+    }
+  }
+
+  private handleAnioLectivoUniqueError(error: unknown): void {
+    if (
+      error instanceof QueryFailedError &&
+      (error.driverError as { code?: string }).code === '23505'
+    ) {
+      throw new ConflictException(
+        'Ya existe un año lectivo para ese año en la institución',
+      );
+    }
+  }
+
+  private async findEscalaValoracionById(
+    institucionId: string,
+    escalaId: string,
+  ) {
+    const escala = await this.escalasRepository.findOneBy({
+      id: escalaId,
+      institucionId,
+    });
+    if (!escala) {
+      throw new NotFoundException('Escala de valoración no encontrada');
+    }
+    return escala;
+  }
+
+  private assertEscalaNiveles(
+    niveles: Array<{ valorMinimo: string; valorMaximo: string }>,
+  ) {
+    if (
+      niveles.some((nivel) => {
+        const minimo = Number(nivel.valorMinimo);
+        const maximo = Number(nivel.valorMaximo);
+        return (
+          !Number.isFinite(minimo) ||
+          !Number.isFinite(maximo) ||
+          minimo > maximo
+        );
+      })
+    ) {
+      throw new BadRequestException(
+        'Los rangos de los niveles de valoración no son válidos',
+      );
+    }
+  }
+
+  private handleEscalaValoracionUniqueError(
+    error: unknown,
+    nombre: string,
+  ): void {
+    if (
+      error instanceof QueryFailedError &&
+      (error.driverError as { code?: string }).code === '23505'
+    ) {
+      throw new ConflictException(
+        `Ya existe una escala de valoración llamada "${nombre.trim()}"`,
+      );
+    }
   }
 
   private async findSedeById(institucionId: string, sedeId: string) {
@@ -405,7 +661,10 @@ export class InstitutionService {
   }
 
   private async findAnioLectivoById(id: string, currentUser?: JwtPayload) {
-    const anio = await this.aniosLectivosRepository.findOneBy({ id });
+    const anio = await this.aniosLectivosRepository.findOneBy({
+      id,
+      eliminadoEn: IsNull(),
+    });
     if (!anio) {
       throw new NotFoundException('Anio lectivo no encontrado');
     }

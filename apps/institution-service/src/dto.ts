@@ -1,13 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsNumberString,
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -84,6 +87,28 @@ export class CrearAnioLectivoDto {
   @ApiProperty()
   @IsDateString()
   fechaFin!: string;
+}
+
+export class ActualizarAnioLectivoDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  nombre?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  fechaInicio?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  fechaFin?: string;
+
+  @ApiPropertyOptional({ enum: ['borrador', 'activo'] })
+  @IsOptional()
+  @IsIn(['borrador', 'activo'])
+  estado?: 'borrador' | 'activo';
 }
 
 export class CrearPeriodoAcademicoDto {
@@ -164,7 +189,35 @@ export class CrearEscalaValoracionDto {
 
   @ApiProperty({ type: [CrearNivelEscalaDto] })
   @IsArray()
+  @ArrayMinSize(2)
   @ValidateNested({ each: true })
   @Type(() => CrearNivelEscalaDto)
   niveles!: CrearNivelEscalaDto[];
+}
+
+export class ActualizarNivelEscalaDto extends CrearNivelEscalaDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+}
+
+export class ActualizarEscalaValoracionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  nombre?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  activo?: boolean;
+
+  @ApiPropertyOptional({ type: [ActualizarNivelEscalaDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(2)
+  @ValidateNested({ each: true })
+  @Type(() => ActualizarNivelEscalaDto)
+  niveles?: ActualizarNivelEscalaDto[];
 }

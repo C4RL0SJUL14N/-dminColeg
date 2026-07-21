@@ -33,6 +33,8 @@ import {
   X,
 } from "lucide-react";
 import {
+  actualizarAnioLectivo,
+  actualizarEscalaValoracion,
   actualizarSede,
   actualizarInstitucion,
   AnioLectivoResponse,
@@ -43,6 +45,8 @@ import {
   crearInstitucion,
   crearSede,
   crearSedePrincipal,
+  eliminarAnioLectivo,
+  eliminarEscalaValoracion,
   eliminarSede,
   EscalaValoracionResponse,
   getAniosLectivos,
@@ -873,6 +877,7 @@ type ConfigurationSection =
 
 interface ScaleLevelDraft {
   id: string;
+  persisted?: boolean;
   codigo: string;
   nombre: string;
   valorMinimo: string;
@@ -944,10 +949,12 @@ function InstitutionConfigurationPage({
   const [yearName, setYearName] = useState(`Año lectivo ${currentYear}`);
   const [yearStart, setYearStart] = useState(`${currentYear}-01-15`);
   const [yearEnd, setYearEnd] = useState(`${currentYear}-11-30`);
+  const [editingYearId, setEditingYearId] = useState<string | null>(null);
   const [pedagogicalModel, setPedagogicalModel] = useState("");
   const [pedagogicalApproach, setPedagogicalApproach] = useState("");
   const [scaleType, setScaleType] = useState("numerica");
   const [scaleName, setScaleName] = useState("Escala institucional");
+  const [editingScaleId, setEditingScaleId] = useState<string | null>(null);
   const [scaleLevels, setScaleLevels] = useState<ScaleLevelDraft[]>(() =>
     initialScaleLevels.map((level) => ({ ...level })),
   );
@@ -1108,7 +1115,22 @@ function InstitutionConfigurationPage({
     }
   }
 
-  async function addAcademicYear(event: FormEvent) {
+  function resetAcademicYearForm() {
+    setEditingYearId(null);
+    setYearName(`Año lectivo ${currentYear}`);
+    setYearStart(`${currentYear}-01-15`);
+    setYearEnd(`${currentYear}-11-30`);
+  }
+
+  function beginAcademicYearEdit(year: AnioLectivoResponse) {
+    setEditingYearId(year.id);
+    setYearName(year.nombre ?? String(year.anio));
+    setYearStart(year.fechaInicio.slice(0, 10));
+    setYearEnd(year.fechaFin.slice(0, 10));
+    setError("");
+  }
+
+  async function saveAcademicYear(event: FormEvent) {
     event.preventDefault();
     setError("");
     if (yearStart >= yearEnd) {
@@ -1119,13 +1141,83 @@ function InstitutionConfigurationPage({
     }
     setSaving("anio");
     try {
-      const academicYear = await crearAnioLectivo(
+      if (editingYearId) {
+        const updated = await actualizarAnioLectivo(
+          institution.id,
+          editingYearId,
+          {
+            nombre: yearName.trim(),
+            fechaInicio: yearStart,
+            fechaFin: yearEnd,
+          },
+          accessToken,
+        );
+        setAnios((current) =>
+          current.map((year) => (year.id === updated.id ? updated : year)),
+        );
+        onToast("Año lectivo actualizado correctamente");
+      } else {
+        const academicYear = await crearAnioLectivo(
+          institution.id,
+          {
+            nombre: yearName.trim(),
+            fechaInicio: yearStart,
+            fechaFin: yearEnd,
+          },
+          accessToken,
+        );
+        setAnios((current) => [academicYear, ...current]);
+        onToast("Año lectivo creado correctamente");
+      }
+      resetAcademicYearForm();
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function toggleAcademicYear(year: AnioLectivoResponse) {
+    if (year.estado === "cerrado") return;
+    setSaving(`anio-estado-${year.id}`);
+    setError("");
+    try {
+      const updated = await actualizarAnioLectivo(
         institution.id,
-        { nombre: yearName.trim(), fechaInicio: yearStart, fechaFin: yearEnd },
+        year.id,
+        { estado: year.estado === "activo" ? "borrador" : "activo" },
         accessToken,
       );
-      setAnios((current) => [academicYear, ...current]);
-      onToast("Año lectivo creado correctamente");
+      setAnios((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      onToast(
+        updated.estado === "activo"
+          ? "Año lectivo activado"
+          : "Año lectivo desactivado",
+      );
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function removeAcademicYear(year: AnioLectivoResponse) {
+    if (
+      !window.confirm(
+        `¿Eliminar el año lectivo "${year.nombre ?? year.anio}"? Se conservarán sus referencias históricas.`,
+      )
+    ) {
+      return;
+    }
+    setSaving(`anio-eliminar-${year.id}`);
+    setError("");
+    try {
+      await eliminarAnioLectivo(institution.id, year.id, accessToken);
+      setAnios((current) => current.filter((item) => item.id !== year.id));
+      if (editingYearId === year.id) resetAcademicYearForm();
+      onToast("Año lectivo eliminado correctamente");
     } catch (caught) {
       setError(actionError(caught));
     } finally {
@@ -1158,7 +1250,7 @@ function InstitutionConfigurationPage({
 
   function updateScaleLevel(
     id: string,
-    field: keyof Omit<ScaleLevelDraft, "id">,
+    field: "codigo" | "nombre" | "valorMinimo" | "valorMaximo",
     value: string,
   ) {
     setScaleLevels((current) =>
@@ -1168,13 +1260,36 @@ function InstitutionConfigurationPage({
     );
   }
 
-  async function addScale(event: FormEvent) {
+  function resetScaleForm() {
+    setEditingScaleId(null);
+    setScaleName("Escala institucional");
+    setScaleLevels(initialScaleLevels.map((level) => ({ ...level })));
+  }
+
+  function beginScaleEdit(scale: EscalaValoracionResponse) {
+    setEditingScaleId(scale.id);
+    setScaleName(scale.nombre);
+    setScaleLevels(
+      scale.niveles.map((level) => ({
+        id: level.id,
+        persisted: true,
+        codigo: level.etiquetaCorta ?? "",
+        nombre: level.nombre,
+        valorMinimo: level.valorMinimo,
+        valorMaximo: level.valorMaximo,
+      })),
+    );
+    setError("");
+  }
+
+  async function saveScale(event: FormEvent) {
     event.preventDefault();
     setError("");
     const normalizedName = scaleName.trim().toLocaleLowerCase("es");
     if (
       escalas.some(
         (scale) =>
+          scale.id !== editingScaleId &&
           scale.nombre.trim().toLocaleLowerCase("es") === normalizedName,
       )
     ) {
@@ -1200,24 +1315,84 @@ function InstitutionConfigurationPage({
     }
     setSaving("escala");
     try {
-      const result = await crearEscalaValoracion(
+      const input = {
+        nombre: scaleName.trim(),
+        niveles: scaleLevels.map((level, index) => ({
+          id: level.persisted ? level.id : undefined,
+          codigo: level.codigo.trim().toUpperCase(),
+          nombre: level.nombre.trim(),
+          valorMinimo: level.valorMinimo,
+          valorMaximo: level.valorMaximo,
+          orden: index + 1,
+        })),
+      };
+      const result = editingScaleId
+        ? await actualizarEscalaValoracion(
+            institution.id,
+            editingScaleId,
+            input,
+            accessToken,
+          )
+        : await crearEscalaValoracion(
+            institution.id,
+            {
+              nombre: input.nombre,
+              niveles: input.niveles.map((level) => ({
+                codigo: level.codigo,
+                nombre: level.nombre,
+                valorMinimo: level.valorMinimo,
+                valorMaximo: level.valorMaximo,
+                orden: level.orden,
+              })),
+            },
+            accessToken,
+          );
+      setEscalas(result);
+      onToast(
+        editingScaleId
+          ? "Escala de valoración actualizada correctamente"
+          : "Escala de valoración creada correctamente",
+      );
+      resetScaleForm();
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function toggleScale(scale: EscalaValoracionResponse) {
+    setSaving(`escala-estado-${scale.id}`);
+    setError("");
+    try {
+      const result = await actualizarEscalaValoracion(
         institution.id,
-        {
-          nombre: scaleName.trim(),
-          niveles: scaleLevels.map((level, index) => ({
-            codigo: level.codigo.trim().toUpperCase(),
-            nombre: level.nombre.trim(),
-            valorMinimo: level.valorMinimo,
-            valorMaximo: level.valorMaximo,
-            orden: index + 1,
-          })),
-        },
+        scale.id,
+        { activo: !scale.activo },
         accessToken,
       );
       setEscalas(result);
-      setScaleName("");
-      setScaleLevels(initialScaleLevels.map((level) => ({ ...level })));
-      onToast("Escala de valoración creada correctamente");
+      onToast(scale.activo ? "Escala desactivada" : "Escala activada");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function removeScale(scale: EscalaValoracionResponse) {
+    if (!window.confirm(`¿Eliminar la escala "${scale.nombre}"?`)) return;
+    setSaving(`escala-eliminar-${scale.id}`);
+    setError("");
+    try {
+      const result = await eliminarEscalaValoracion(
+        institution.id,
+        scale.id,
+        accessToken,
+      );
+      setEscalas(result);
+      if (editingScaleId === scale.id) resetScaleForm();
+      onToast("Escala de valoración eliminada correctamente");
     } catch (caught) {
       setError(actionError(caught));
     } finally {
@@ -1498,13 +1673,71 @@ function InstitutionConfigurationPage({
                     title: year.nombre ?? String(year.anio),
                     detail: `${formatDate(year.fechaInicio)} — ${formatDate(year.fechaFin)}`,
                     status: capitalize(year.estado),
+                    actions: (
+                      <div className="configuration-entity__actions">
+                        <button
+                          type="button"
+                          title="Editar año lectivo"
+                          aria-label={`Editar ${year.nombre ?? year.anio}`}
+                          disabled={
+                            Boolean(saving) || year.estado === "cerrado"
+                          }
+                          onClick={() => beginAcademicYearEdit(year)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          title={
+                            year.estado === "activo"
+                              ? "Desactivar año lectivo"
+                              : year.estado === "cerrado"
+                                ? "El año lectivo está cerrado"
+                                : "Activar año lectivo"
+                          }
+                          aria-label={`${year.estado === "activo" ? "Desactivar" : "Activar"} ${year.nombre ?? year.anio}`}
+                          disabled={
+                            Boolean(saving) || year.estado === "cerrado"
+                          }
+                          onClick={() => void toggleAcademicYear(year)}
+                        >
+                          <Power size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="configuration-entity__delete"
+                          title="Eliminar año lectivo"
+                          aria-label={`Eliminar ${year.nombre ?? year.anio}`}
+                          disabled={Boolean(saving)}
+                          onClick={() => void removeAcademicYear(year)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ),
                   }))}
                 />
                 <form
                   className="configuration-form configuration-form--divided"
-                  onSubmit={addAcademicYear}
+                  onSubmit={saveAcademicYear}
                 >
-                  <h3>Crear año lectivo</h3>
+                  <div className="scale-form-heading">
+                    <h3>
+                      {editingYearId
+                        ? "Editar año lectivo"
+                        : "Crear año lectivo"}
+                    </h3>
+                    {editingYearId && (
+                      <button
+                        type="button"
+                        className="button button--secondary"
+                        disabled={Boolean(saving)}
+                        onClick={resetAcademicYearForm}
+                      >
+                        Cancelar edición
+                      </button>
+                    )}
+                  </div>
                   <label className="field field--full">
                     <span>Nombre</span>
                     <input
@@ -1536,7 +1769,9 @@ function InstitutionConfigurationPage({
                   </div>
                   <FormActions
                     saving={saving === "anio"}
-                    label="Crear año lectivo"
+                    label={
+                      editingYearId ? "Guardar cambios" : "Crear año lectivo"
+                    }
                   />
                 </form>
               </ConfigurationCard>
@@ -1602,32 +1837,81 @@ function InstitutionConfigurationPage({
                     title: scale.nombre,
                     detail: `${scale.niveles.length} niveles · ${capitalize(scale.tipo)}`,
                     status: scale.activo ? "Activa" : "Inactiva",
+                    actions: (
+                      <div className="configuration-entity__actions">
+                        <button
+                          type="button"
+                          title="Editar escala"
+                          aria-label={`Editar ${scale.nombre}`}
+                          disabled={Boolean(saving)}
+                          onClick={() => beginScaleEdit(scale)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          title={
+                            scale.activo
+                              ? "Desactivar escala"
+                              : "Activar escala"
+                          }
+                          aria-label={`${scale.activo ? "Desactivar" : "Activar"} ${scale.nombre}`}
+                          disabled={Boolean(saving)}
+                          onClick={() => void toggleScale(scale)}
+                        >
+                          <Power size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="configuration-entity__delete"
+                          title="Eliminar escala"
+                          aria-label={`Eliminar ${scale.nombre}`}
+                          disabled={Boolean(saving)}
+                          onClick={() => void removeScale(scale)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ),
                   }))}
                 />
                 <form
                   className="configuration-form configuration-form--divided"
-                  onSubmit={addScale}
+                  onSubmit={saveScale}
                 >
                   <div className="scale-form-heading">
-                    <h3>Nueva escala</h3>
-                    <button
-                      type="button"
-                      className="button button--secondary"
-                      onClick={() =>
-                        setScaleLevels((current) => [
-                          ...current,
-                          {
-                            id: `${Date.now()}-${current.length}`,
-                            codigo: "",
-                            nombre: "",
-                            valorMinimo: "",
-                            valorMaximo: "",
-                          },
-                        ])
-                      }
-                    >
-                      <Plus size={15} /> Agregar nivel
-                    </button>
+                    <h3>{editingScaleId ? "Editar escala" : "Nueva escala"}</h3>
+                    <div className="scale-form-heading__actions">
+                      {editingScaleId && (
+                        <button
+                          type="button"
+                          className="button button--secondary"
+                          disabled={Boolean(saving)}
+                          onClick={resetScaleForm}
+                        >
+                          Cancelar edición
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="button button--secondary"
+                        disabled={Boolean(saving)}
+                        onClick={() =>
+                          setScaleLevels((current) => [
+                            ...current,
+                            {
+                              id: `${Date.now()}-${current.length}`,
+                              codigo: "",
+                              nombre: "",
+                              valorMinimo: "",
+                              valorMaximo: "",
+                            },
+                          ])
+                        }
+                      >
+                        <Plus size={15} /> Agregar nivel
+                      </button>
+                    </div>
                   </div>
                   <label className="field field--full">
                     <span>Nombre de la escala</span>
@@ -1672,15 +1956,22 @@ function InstitutionConfigurationPage({
                         </label>
                         <label className="field">
                           <span>Código</span>
-                          <CodeInput
-                            value={level.codigo}
-                            onChange={(value) =>
-                              updateScaleLevel(level.id, "codigo", value)
-                            }
-                            source={level.nombre}
-                            fallback="NIVEL"
-                            placeholder="Ej. ALTO"
-                          />
+                          {level.persisted ? (
+                            <div className="read-only-field read-only-field--compact">
+                              <strong>{level.codigo}</strong>
+                              <small>El código no puede modificarse.</small>
+                            </div>
+                          ) : (
+                            <CodeInput
+                              value={level.codigo}
+                              onChange={(value) =>
+                                updateScaleLevel(level.id, "codigo", value)
+                              }
+                              source={level.nombre}
+                              fallback="NIVEL"
+                              placeholder="Ej. ALTO"
+                            />
+                          )}
                         </label>
                         <div className="form-grid">
                           <label className="field">
@@ -1721,7 +2012,11 @@ function InstitutionConfigurationPage({
                   </div>
                   <FormActions
                     saving={saving === "escala"}
-                    label="Crear escala de valoración"
+                    label={
+                      editingScaleId
+                        ? "Guardar cambios"
+                        : "Crear escala de valoración"
+                    }
                   />
                 </form>
               </ConfigurationCard>

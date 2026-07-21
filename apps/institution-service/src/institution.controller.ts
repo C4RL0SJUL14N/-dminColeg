@@ -20,6 +20,8 @@ import {
 } from '@libs/common';
 import {
   ActualizarInstitucionDto,
+  ActualizarAnioLectivoDto,
+  ActualizarEscalaValoracionDto,
   ActualizarSedeDto,
   ConfiguracionInstitucionDto,
   CrearAnioLectivoDto,
@@ -181,6 +183,52 @@ export class InstitutionController {
     return this.institutionService.findAniosLectivos(institucionId);
   }
 
+  @InstitutionScoped({ param: 'institucionId' })
+  @Patch('instituciones/:institucionId/anios-lectivos/:anioId')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'anio-lectivo',
+    entidadIdParam: 'anioId',
+    accion: 'actualizar-anio-lectivo',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarPayload: true,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
+  updateAnioLectivo(
+    @Param('institucionId', new ParseUUIDPipe()) institucionId: string,
+    @Param('anioId', new ParseUUIDPipe()) anioId: string,
+    @Body() dto: ActualizarAnioLectivoDto,
+  ) {
+    return this.institutionService.updateAnioLectivo(
+      institucionId,
+      anioId,
+      dto,
+    );
+  }
+
+  @InstitutionScoped({ param: 'institucionId' })
+  @Delete('instituciones/:institucionId/anios-lectivos/:anioId')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'anio-lectivo',
+    entidadIdParam: 'anioId',
+    accion: 'eliminar-anio-lectivo',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
+  deleteAnioLectivo(
+    @Param('institucionId', new ParseUUIDPipe()) institucionId: string,
+    @Param('anioId', new ParseUUIDPipe()) anioId: string,
+  ) {
+    return this.institutionService.deleteAnioLectivo(institucionId, anioId);
+  }
+
   @Post('anios-lectivos/:id/periodos')
   @Audit({
     servicio: 'institution-service',
@@ -274,5 +322,54 @@ export class InstitutionController {
     @Param('id', new ParseUUIDPipe()) institucionId: string,
   ) {
     return this.institutionService.findEscalasValoracion(institucionId);
+  }
+
+  @InstitutionScoped({ param: 'institucionId' })
+  @Patch('instituciones/:institucionId/escalas-valoracion/:escalaId')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'escala-valoracion',
+    entidadIdParam: 'escalaId',
+    accion: 'actualizar-escala-valoracion',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarPayload: true,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
+  updateEscalaValoracion(
+    @Param('institucionId', new ParseUUIDPipe()) institucionId: string,
+    @Param('escalaId', new ParseUUIDPipe()) escalaId: string,
+    @Body() dto: ActualizarEscalaValoracionDto,
+  ) {
+    return this.institutionService.updateEscalaValoracion(
+      institucionId,
+      escalaId,
+      dto,
+    );
+  }
+
+  @InstitutionScoped({ param: 'institucionId' })
+  @Delete('instituciones/:institucionId/escalas-valoracion/:escalaId')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'escala-valoracion',
+    entidadIdParam: 'escalaId',
+    accion: 'eliminar-escala-valoracion',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
+  deleteEscalaValoracion(
+    @Param('institucionId', new ParseUUIDPipe()) institucionId: string,
+    @Param('escalaId', new ParseUUIDPipe()) escalaId: string,
+  ) {
+    return this.institutionService.deleteEscalaValoracion(
+      institucionId,
+      escalaId,
+    );
   }
 }

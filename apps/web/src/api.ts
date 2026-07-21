@@ -333,6 +333,36 @@ export function crearAnioLectivo(
   );
 }
 
+export function actualizarAnioLectivo(
+  institucionId: string,
+  anioId: string,
+  input: {
+    nombre?: string;
+    fechaInicio?: string;
+    fechaFin?: string;
+    estado?: "borrador" | "activo";
+  },
+  accessToken: string,
+) {
+  return authenticatedRequest<AnioLectivoResponse>(
+    `/instituciones/${institucionId}/anios-lectivos/${anioId}`,
+    accessToken,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function eliminarAnioLectivo(
+  institucionId: string,
+  anioId: string,
+  accessToken: string,
+) {
+  return authenticatedRequest<AnioLectivoResponse>(
+    `/instituciones/${institucionId}/anios-lectivos/${anioId}`,
+    accessToken,
+    { method: "DELETE" },
+  );
+}
+
 export function getConfiguracionInstitucion(
   institucionId: string,
   accessToken: string,
@@ -390,6 +420,42 @@ export function crearEscalaValoracion(
     `/instituciones/${institucionId}/escalas-valoracion`,
     accessToken,
     { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function actualizarEscalaValoracion(
+  institucionId: string,
+  escalaId: string,
+  input: {
+    nombre?: string;
+    activo?: boolean;
+    niveles?: Array<{
+      id?: string;
+      codigo: string;
+      nombre: string;
+      valorMinimo: string;
+      valorMaximo: string;
+      orden: number;
+    }>;
+  },
+  accessToken: string,
+) {
+  return authenticatedRequest<EscalaValoracionResponse[]>(
+    `/instituciones/${institucionId}/escalas-valoracion/${escalaId}`,
+    accessToken,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function eliminarEscalaValoracion(
+  institucionId: string,
+  escalaId: string,
+  accessToken: string,
+) {
+  return authenticatedRequest<EscalaValoracionResponse[]>(
+    `/instituciones/${institucionId}/escalas-valoracion/${escalaId}`,
+    accessToken,
+    { method: "DELETE" },
   );
 }
 
