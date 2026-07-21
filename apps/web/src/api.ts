@@ -289,6 +289,31 @@ export function crearSede(
   );
 }
 
+export function actualizarSede(
+  institucionId: string,
+  sedeId: string,
+  input: { codigo?: string; nombre?: string; activo?: boolean },
+  accessToken: string,
+) {
+  return authenticatedRequest<SedeResponse>(
+    `/instituciones/${institucionId}/sedes/${sedeId}`,
+    accessToken,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function eliminarSede(
+  institucionId: string,
+  sedeId: string,
+  accessToken: string,
+) {
+  return authenticatedRequest<SedeResponse>(
+    `/instituciones/${institucionId}/sedes/${sedeId}`,
+    accessToken,
+    { method: "DELETE" },
+  );
+}
+
 export function getAniosLectivos(institucionId: string, accessToken: string) {
   return authenticatedRequest<AnioLectivoResponse[]>(
     `/instituciones/${institucionId}/anios-lectivos`,

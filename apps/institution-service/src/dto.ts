@@ -60,6 +60,23 @@ export class CrearSedeDto {
   principal?: boolean;
 }
 
+export class ActualizarSedeDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  codigo?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  nombre?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  activo?: boolean;
+}
+
 export class CrearAnioLectivoDto {
   @ApiProperty()
   @IsString()

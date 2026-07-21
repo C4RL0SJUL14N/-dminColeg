@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { QueryFailedError, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 import {
   setAuditAfterState,
   setAuditBeforeState,
@@ -24,6 +24,7 @@ import {
 } from '@libs/database';
 import {
   ActualizarInstitucionDto,
+  ActualizarSedeDto,
   ConfiguracionInstitucionDto,
   CrearAnioLectivoDto,
   CrearEscalaValoracionDto,
@@ -53,7 +54,9 @@ export class InstitutionService {
 
   async createInstitucion(dto: CrearInstitucionDto, currentUser: JwtPayload) {
     if (!currentUser.superadministrador) {
-      throw new ForbiddenException('Solo el superadministrador puede crear instituciones');
+      throw new ForbiddenException(
+        'Solo el superadministrador puede crear instituciones',
+      );
     }
 
     const institucion = await this.institucionesRepository.save(
@@ -102,16 +105,22 @@ export class InstitutionService {
 
   async createSede(institucionId: string, dto: CrearSedeDto) {
     await this.findInstitucionById(institucionId);
-    const sede = await this.sedesRepository.save(
-      this.sedesRepository.create({
-        institucionId,
-        codigo: dto.codigo,
-        nombre: dto.nombre,
-        activo: true,
-        eliminadoEn: null,
-        version: 1,
-      }),
-    );
+    let sede: Sede;
+    try {
+      sede = await this.sedesRepository.save(
+        this.sedesRepository.create({
+          institucionId,
+          codigo: dto.codigo.trim().toUpperCase(),
+          nombre: dto.nombre.trim(),
+          activo: true,
+          eliminadoEn: null,
+          version: 1,
+        }),
+      );
+    } catch (error) {
+      this.handleSedeUniqueError(error);
+      throw error;
+    }
     setAuditEntityId(sede.id);
     setAuditAfterState(sede);
     return sede;
@@ -119,9 +128,44 @@ export class InstitutionService {
 
   findSedes(institucionId: string) {
     return this.sedesRepository.find({
-      where: { institucionId },
+      where: { institucionId, eliminadoEn: IsNull() },
       order: { nombre: 'ASC' },
     });
+  }
+
+  async updateSede(
+    institucionId: string,
+    sedeId: string,
+    dto: ActualizarSedeDto,
+  ) {
+    const sede = await this.findSedeById(institucionId, sedeId);
+    setAuditEntityId(sede.id);
+    setAuditBeforeState(sede);
+    if (dto.codigo !== undefined) sede.codigo = dto.codigo.trim().toUpperCase();
+    if (dto.nombre !== undefined) sede.nombre = dto.nombre.trim();
+    if (dto.activo !== undefined) sede.activo = dto.activo;
+    sede.version += 1;
+
+    try {
+      const updated = await this.sedesRepository.save(sede);
+      setAuditAfterState(updated);
+      return updated;
+    } catch (error) {
+      this.handleSedeUniqueError(error);
+      throw error;
+    }
+  }
+
+  async deleteSede(institucionId: string, sedeId: string) {
+    const sede = await this.findSedeById(institucionId, sedeId);
+    setAuditEntityId(sede.id);
+    setAuditBeforeState(sede);
+    sede.activo = false;
+    sede.eliminadoEn = new Date();
+    sede.version += 1;
+    const deleted = await this.sedesRepository.save(sede);
+    setAuditAfterState(deleted);
+    return deleted;
   }
 
   async createAnioLectivo(institucionId: string, dto: CrearAnioLectivoDto) {
@@ -229,13 +273,16 @@ export class InstitutionService {
         institucionId,
         logoUrl: null,
         modeloPedagogico:
-          (dto.configuracion?.modeloPedagogico as string | undefined) ?? dto.idioma ?? null,
+          (dto.configuracion?.modeloPedagogico as string | undefined) ??
+          dto.idioma ??
+          null,
         enfoquePedagogico:
           (dto.configuracion?.enfoquePedagogico as string | undefined) ??
           dto.zonaHoraria ??
           null,
         tipoEscalaValoracion:
-          (dto.configuracion?.tipoEscalaValoracion as string | undefined) ?? 'numerica',
+          (dto.configuracion?.tipoEscalaValoracion as string | undefined) ??
+          'numerica',
         actualizadoPorUsuarioId: null,
         version: 1,
       }),
@@ -330,6 +377,34 @@ export class InstitutionService {
     return result;
   }
 
+  private async findSedeById(institucionId: string, sedeId: string) {
+    const sede = await this.sedesRepository.findOneBy({
+      id: sedeId,
+      institucionId,
+      eliminadoEn: IsNull(),
+    });
+    if (!sede) {
+      throw new NotFoundException('Sede no encontrada');
+    }
+    return sede;
+  }
+
+  private handleSedeUniqueError(error: unknown): void {
+    if (
+      error instanceof QueryFailedError &&
+      (error.driverError as { code?: string }).code === '23505'
+    ) {
+      const constraint = (error.driverError as { constraint?: string })
+        .constraint;
+      throw new ConflictException(
+        constraint === 'uq_sedes_institucion_nombre' ||
+        constraint === 'uq_sedes_institucion_nombre_activas'
+          ? 'Ya existe una sede con ese nombre en la institución'
+          : 'Ya existe una sede con ese código',
+      );
+    }
+  }
+
   private async findAnioLectivoById(id: string, currentUser?: JwtPayload) {
     const anio = await this.aniosLectivosRepository.findOneBy({ id });
     if (!anio) {
@@ -347,18 +422,27 @@ export class InstitutionService {
       throw new NotFoundException('Periodo academico no encontrado');
     }
 
-    const anio = await this.findAnioLectivoById(periodo.anioLectivoId, currentUser);
+    const anio = await this.findAnioLectivoById(
+      periodo.anioLectivoId,
+      currentUser,
+    );
     this.assertInstitutionAccess(anio.institucionId, currentUser);
 
     return periodo;
   }
 
-  private assertInstitutionAccess(institucionId: string, currentUser?: JwtPayload) {
+  private assertInstitutionAccess(
+    institucionId: string,
+    currentUser?: JwtPayload,
+  ) {
     if (!currentUser || currentUser.superadministrador) {
       return;
     }
 
-    if (!currentUser.institucionId || currentUser.institucionId !== institucionId) {
+    if (
+      !currentUser.institucionId ||
+      currentUser.institucionId !== institucionId
+    ) {
       throw new ForbiddenException(
         'No puede operar fuera de la institucion asociada a su usuario',
       );

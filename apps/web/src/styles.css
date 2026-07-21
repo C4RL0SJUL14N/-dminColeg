@@ -1360,6 +1360,43 @@ td {
   background: #edf5f2;
   font-size: 0.58rem;
 }
+.configuration-entities .configuration-entity__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.configuration-entities .configuration-entity__actions {
+  display: flex;
+  grid-auto-flow: column;
+  gap: 5px;
+}
+.configuration-entity__actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #d9e3df;
+  border-radius: 8px;
+  color: #397d70;
+  background: white;
+}
+.configuration-entity__actions button:hover:not(:disabled) {
+  border-color: #8fb5ad;
+  background: #edf5f2;
+}
+.configuration-entity__actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.configuration-entity__actions .configuration-entity__delete {
+  color: #a94747;
+}
+.configuration-entity__actions
+  .configuration-entity__delete:hover:not(:disabled) {
+  border-color: #dfb4b4;
+  background: #fff1f1;
+}
 .configuration-empty {
   margin: 18px 23px 0;
   padding: 20px;

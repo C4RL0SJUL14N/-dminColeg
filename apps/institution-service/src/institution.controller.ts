@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Audit, AUDIT_EVENT_TYPE, AUDIT_SEVERITY } from '@libs/audit';
 import {
@@ -10,6 +20,7 @@ import {
 } from '@libs/common';
 import {
   ActualizarInstitucionDto,
+  ActualizarSedeDto,
   ConfiguracionInstitucionDto,
   CrearAnioLectivoDto,
   CrearEscalaValoracionDto,
@@ -89,7 +100,10 @@ export class InstitutionController {
     capturarPayload: true,
     capturarDespues: true,
   })
-  createSede(@Param('id', new ParseUUIDPipe()) institucionId: string, @Body() dto: CrearSedeDto) {
+  createSede(
+    @Param('id', new ParseUUIDPipe()) institucionId: string,
+    @Body() dto: CrearSedeDto,
+  ) {
     return this.institutionService.createSede(institucionId, dto);
   }
 
@@ -97,6 +111,48 @@ export class InstitutionController {
   @Get('instituciones/:id/sedes')
   findSedes(@Param('id', new ParseUUIDPipe()) institucionId: string) {
     return this.institutionService.findSedes(institucionId);
+  }
+
+  @InstitutionScoped({ param: 'institucionId' })
+  @Patch('instituciones/:institucionId/sedes/:sedeId')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'sede',
+    entidadIdParam: 'sedeId',
+    accion: 'actualizar-sede',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.INFO,
+    capturarPayload: true,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
+  updateSede(
+    @Param('institucionId', new ParseUUIDPipe()) institucionId: string,
+    @Param('sedeId', new ParseUUIDPipe()) sedeId: string,
+    @Body() dto: ActualizarSedeDto,
+  ) {
+    return this.institutionService.updateSede(institucionId, sedeId, dto);
+  }
+
+  @InstitutionScoped({ param: 'institucionId' })
+  @Delete('instituciones/:institucionId/sedes/:sedeId')
+  @Audit({
+    servicio: 'institution-service',
+    modulo: 'institution',
+    entidad: 'sede',
+    entidadIdParam: 'sedeId',
+    accion: 'eliminar-sede',
+    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
+    severidad: AUDIT_SEVERITY.WARN,
+    capturarAntes: true,
+    capturarDespues: true,
+  })
+  deleteSede(
+    @Param('institucionId', new ParseUUIDPipe()) institucionId: string,
+    @Param('sedeId', new ParseUUIDPipe()) sedeId: string,
+  ) {
+    return this.institutionService.deleteSede(institucionId, sedeId);
   }
 
   @InstitutionScoped({ param: 'id' })
@@ -142,7 +198,11 @@ export class InstitutionController {
     @Body() dto: CrearPeriodoAcademicoDto,
     @CurrentUser() currentUser: JwtPayload,
   ) {
-    return this.institutionService.createPeriodo(anioLectivoId, dto, currentUser);
+    return this.institutionService.createPeriodo(
+      anioLectivoId,
+      dto,
+      currentUser,
+    );
   }
 
   @Get('anios-lectivos/:id/periodos')
@@ -210,7 +270,9 @@ export class InstitutionController {
 
   @InstitutionScoped({ param: 'id' })
   @Get('instituciones/:id/escalas-valoracion')
-  findEscalasValoracion(@Param('id', new ParseUUIDPipe()) institucionId: string) {
+  findEscalasValoracion(
+    @Param('id', new ParseUUIDPipe()) institucionId: string,
+  ) {
     return this.institutionService.findEscalasValoracion(institucionId);
   }
 }

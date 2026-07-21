@@ -17,19 +17,23 @@ import {
   MapPin,
   Menu,
   MoreHorizontal,
+  Pencil,
   Plus,
+  Power,
   Search,
   Save,
   Settings2,
   ShieldCheck,
   Sparkles,
   TrendingUp,
+  Trash2,
   UserCheck,
   UserPlus,
   Users,
   X,
 } from "lucide-react";
 import {
+  actualizarSede,
   actualizarInstitucion,
   AnioLectivoResponse,
   cambiarContrasenaInicial,
@@ -39,6 +43,7 @@ import {
   crearInstitucion,
   crearSede,
   crearSedePrincipal,
+  eliminarSede,
   EscalaValoracionResponse,
   getAniosLectivos,
   getApiUrl,
@@ -934,6 +939,7 @@ function InstitutionConfigurationPage({
   );
   const [campusName, setCampusName] = useState("");
   const [campusCode, setCampusCode] = useState("");
+  const [editingCampusId, setEditingCampusId] = useState<string | null>(null);
   const currentYear = new Date().getFullYear();
   const [yearName, setYearName] = useState(`Año lectivo ${currentYear}`);
   const [yearStart, setYearStart] = useState(`${currentYear}-01-15`);
@@ -1000,27 +1006,98 @@ function InstitutionConfigurationPage({
     }
   }
 
-  async function addCampus(event: FormEvent) {
+  function sortCampuses(items: SedeResponse[]) {
+    return [...items].sort((left, right) =>
+      left.nombre.localeCompare(right.nombre),
+    );
+  }
+
+  function resetCampusForm() {
+    setEditingCampusId(null);
+    setCampusName("");
+    setCampusCode("");
+  }
+
+  function beginCampusEdit(campus: SedeResponse) {
+    setEditingCampusId(campus.id);
+    setCampusName(campus.nombre);
+    setCampusCode(campus.codigo);
+    setError("");
+  }
+
+  async function saveCampus(event: FormEvent) {
     event.preventDefault();
     setSaving("sede");
     setError("");
     try {
-      const campus = await crearSede(
+      const input = {
+        codigo: campusCode.trim().toUpperCase(),
+        nombre: campusName.trim(),
+      };
+      if (editingCampusId) {
+        const updated = await actualizarSede(
+          institution.id,
+          editingCampusId,
+          input,
+          accessToken,
+        );
+        setSedes((current) =>
+          sortCampuses(
+            current.map((campus) =>
+              campus.id === updated.id ? updated : campus,
+            ),
+          ),
+        );
+        onToast("Sede actualizada correctamente");
+      } else {
+        const campus = await crearSede(institution.id, input, accessToken);
+        setSedes((current) => sortCampuses([...current, campus]));
+        onToast("Sede agregada correctamente");
+      }
+      resetCampusForm();
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function toggleCampus(campus: SedeResponse) {
+    setSaving(`sede-estado-${campus.id}`);
+    setError("");
+    try {
+      const updated = await actualizarSede(
         institution.id,
-        {
-          codigo: campusCode.trim().toUpperCase(),
-          nombre: campusName.trim(),
-        },
+        campus.id,
+        { activo: !campus.activo },
         accessToken,
       );
       setSedes((current) =>
-        [...current, campus].sort((left, right) =>
-          left.nombre.localeCompare(right.nombre),
-        ),
+        current.map((item) => (item.id === updated.id ? updated : item)),
       );
-      setCampusName("");
-      setCampusCode("");
-      onToast("Sede agregada correctamente");
+      onToast(updated.activo ? "Sede activada" : "Sede desactivada");
+    } catch (caught) {
+      setError(actionError(caught));
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function removeCampus(campus: SedeResponse) {
+    if (
+      !window.confirm(
+        `¿Eliminar la sede "${campus.nombre}"? Se conservarán sus referencias históricas.`,
+      )
+    ) {
+      return;
+    }
+    setSaving(`sede-eliminar-${campus.id}`);
+    setError("");
+    try {
+      await eliminarSede(institution.id, campus.id, accessToken);
+      setSedes((current) => current.filter((item) => item.id !== campus.id));
+      if (editingCampusId === campus.id) resetCampusForm();
+      onToast("Sede eliminada correctamente");
     } catch (caught) {
       setError(actionError(caught));
     } finally {
@@ -1315,13 +1392,59 @@ function InstitutionConfigurationPage({
                     title: campus.nombre,
                     detail: campus.codigo,
                     status: campus.activo ? "Activa" : "Inactiva",
+                    actions: (
+                      <div className="configuration-entity__actions">
+                        <button
+                          type="button"
+                          title="Editar sede"
+                          aria-label={`Editar ${campus.nombre}`}
+                          disabled={Boolean(saving)}
+                          onClick={() => beginCampusEdit(campus)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          title={
+                            campus.activo ? "Desactivar sede" : "Activar sede"
+                          }
+                          aria-label={`${campus.activo ? "Desactivar" : "Activar"} ${campus.nombre}`}
+                          disabled={Boolean(saving)}
+                          onClick={() => void toggleCampus(campus)}
+                        >
+                          <Power size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="configuration-entity__delete"
+                          title="Eliminar sede"
+                          aria-label={`Eliminar ${campus.nombre}`}
+                          disabled={Boolean(saving)}
+                          onClick={() => void removeCampus(campus)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ),
                   }))}
                 />
                 <form
                   className="configuration-form configuration-form--divided"
-                  onSubmit={addCampus}
+                  onSubmit={saveCampus}
                 >
-                  <h3>Agregar sede</h3>
+                  <div className="scale-form-heading">
+                    <h3>{editingCampusId ? "Editar sede" : "Agregar sede"}</h3>
+                    {editingCampusId && (
+                      <button
+                        type="button"
+                        className="button button--secondary"
+                        disabled={Boolean(saving)}
+                        onClick={resetCampusForm}
+                      >
+                        Cancelar edición
+                      </button>
+                    )}
+                  </div>
                   <div className="form-grid">
                     <label className="field">
                       <span>Nombre de la sede</span>
@@ -1346,7 +1469,7 @@ function InstitutionConfigurationPage({
                   </div>
                   <FormActions
                     saving={saving === "sede"}
-                    label="Agregar sede"
+                    label={editingCampusId ? "Guardar cambios" : "Agregar sede"}
                   />
                 </form>
               </ConfigurationCard>
@@ -1631,7 +1754,13 @@ function EntityList({
   items,
   empty,
 }: {
-  items: Array<{ id: string; title: string; detail: string; status: string }>;
+  items: Array<{
+    id: string;
+    title: string;
+    detail: string;
+    status: string;
+    actions?: ReactNode;
+  }>;
   empty: string;
 }) {
   if (!items.length) return <p className="configuration-empty">{empty}</p>;
@@ -1646,7 +1775,10 @@ function EntityList({
             <strong>{item.title}</strong>
             <small>{item.detail}</small>
           </div>
-          <b>{item.status}</b>
+          <div className="configuration-entity__meta">
+            <b>{item.status}</b>
+            {item.actions}
+          </div>
         </div>
       ))}
     </div>
