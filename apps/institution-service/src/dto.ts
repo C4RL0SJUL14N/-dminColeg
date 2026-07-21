@@ -64,11 +64,6 @@ export class ActualizarSedeDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  codigo?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
   nombre?: string;
 
   @ApiPropertyOptional()

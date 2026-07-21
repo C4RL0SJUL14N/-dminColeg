@@ -292,7 +292,7 @@ export function crearSede(
 export function actualizarSede(
   institucionId: string,
   sedeId: string,
-  input: { codigo?: string; nombre?: string; activo?: boolean },
+  input: { nombre?: string; activo?: boolean },
   accessToken: string,
 ) {
   return authenticatedRequest<SedeResponse>(

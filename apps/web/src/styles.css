@@ -1287,6 +1287,14 @@ td {
 .read-only-field small {
   grid-column: 2;
 }
+.read-only-field--compact {
+  grid-template-columns: 1fr;
+  min-height: 42px;
+  padding: 9px 12px;
+}
+.read-only-field--compact small {
+  grid-column: 1;
+}
 .toggle-field {
   display: flex;
   align-items: flex-start;

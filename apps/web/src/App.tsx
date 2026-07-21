@@ -1030,15 +1030,11 @@ function InstitutionConfigurationPage({
     setSaving("sede");
     setError("");
     try {
-      const input = {
-        codigo: campusCode.trim().toUpperCase(),
-        nombre: campusName.trim(),
-      };
       if (editingCampusId) {
         const updated = await actualizarSede(
           institution.id,
           editingCampusId,
-          input,
+          { nombre: campusName.trim() },
           accessToken,
         );
         setSedes((current) =>
@@ -1050,7 +1046,14 @@ function InstitutionConfigurationPage({
         );
         onToast("Sede actualizada correctamente");
       } else {
-        const campus = await crearSede(institution.id, input, accessToken);
+        const campus = await crearSede(
+          institution.id,
+          {
+            codigo: campusCode.trim().toUpperCase(),
+            nombre: campusName.trim(),
+          },
+          accessToken,
+        );
         setSedes((current) => sortCampuses([...current, campus]));
         onToast("Sede agregada correctamente");
       }
@@ -1458,13 +1461,20 @@ function InstitutionConfigurationPage({
                     </label>
                     <label className="field">
                       <span>Código de sede</span>
-                      <CodeInput
-                        value={campusCode}
-                        onChange={setCampusCode}
-                        source={campusName}
-                        fallback="SEDE"
-                        placeholder="Ej. SN-4K2M"
-                      />
+                      {editingCampusId ? (
+                        <div className="read-only-field read-only-field--compact">
+                          <strong>{campusCode}</strong>
+                          <small>El código no puede modificarse.</small>
+                        </div>
+                      ) : (
+                        <CodeInput
+                          value={campusCode}
+                          onChange={setCampusCode}
+                          source={campusName}
+                          fallback="SEDE"
+                          placeholder="Ej. SN-4K2M"
+                        />
+                      )}
                     </label>
                   </div>
                   <FormActions

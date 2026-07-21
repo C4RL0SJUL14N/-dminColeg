@@ -141,7 +141,6 @@ export class InstitutionService {
     const sede = await this.findSedeById(institucionId, sedeId);
     setAuditEntityId(sede.id);
     setAuditBeforeState(sede);
-    if (dto.codigo !== undefined) sede.codigo = dto.codigo.trim().toUpperCase();
     if (dto.nombre !== undefined) sede.nombre = dto.nombre.trim();
     if (dto.activo !== undefined) sede.activo = dto.activo;
     sede.version += 1;
@@ -398,7 +397,7 @@ export class InstitutionService {
         .constraint;
       throw new ConflictException(
         constraint === 'uq_sedes_institucion_nombre' ||
-        constraint === 'uq_sedes_institucion_nombre_activas'
+          constraint === 'uq_sedes_institucion_nombre_activas'
           ? 'Ya existe una sede con ese nombre en la institución'
           : 'Ya existe una sede con ese código',
       );
