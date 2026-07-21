@@ -111,10 +111,13 @@ export interface GradoResponse {
   activo: boolean;
 }
 
+export type JornadaNombre =
+  "mañana" | "tarde" | "única" | "nocturna" | "sabatina";
+
 export interface JornadaResponse {
   id: string;
   codigo: string;
-  nombre: string;
+  nombre: JornadaNombre;
   horaInicio?: string | null;
   horaFin?: string | null;
   activo: boolean;
@@ -442,7 +445,7 @@ export function crearJornada(
   institucionId: string,
   input: {
     codigo: string;
-    nombre: string;
+    nombre: JornadaNombre;
     horaInicio?: string;
     horaFin?: string;
   },

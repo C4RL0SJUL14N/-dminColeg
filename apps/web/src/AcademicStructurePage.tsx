@@ -33,6 +33,7 @@ import {
   GradoResponse,
   GrupoResponse,
   InstitucionResponse,
+  JornadaNombre,
   JornadaResponse,
   NivelEducativo,
   SedeResponse,
@@ -80,7 +81,7 @@ export function AcademicStructurePage({
   const [gradeShortName, setGradeShortName] = useState("");
   const [gradeLevel, setGradeLevel] = useState<NivelEducativo>("primaria");
   const [gradeOrder, setGradeOrder] = useState("1");
-  const [scheduleName, setScheduleName] = useState("");
+  const [scheduleName, setScheduleName] = useState<JornadaNombre>("mañana");
   const [scheduleCode, setScheduleCode] = useState("");
   const [scheduleStart, setScheduleStart] = useState("07:00");
   const [scheduleEnd, setScheduleEnd] = useState("13:00");
@@ -306,14 +307,14 @@ export function AcademicStructurePage({
         institutionId,
         {
           codigo: scheduleCode.trim(),
-          nombre: scheduleName.trim(),
+          nombre: scheduleName,
           horaInicio: scheduleStart,
           horaFin: scheduleEnd,
         },
         accessToken,
       );
       setSchedules((current) => [...current, created].sort(byName));
-      setScheduleName("");
+      setScheduleName("mañana");
       setScheduleCode("");
       setGroupScheduleId((current) => current || created.id);
       onToast("Jornada creada");
@@ -669,13 +670,18 @@ export function AcademicStructurePage({
                 saving={saving}
               >
                 <Field label="Nombre">
-                  <input
+                  <select
                     value={scheduleName}
-                    onChange={(event) => setScheduleName(event.target.value)}
-                    placeholder="Ej. Jornada mañana"
-                    minLength={3}
-                    required
-                  />
+                    onChange={(event) =>
+                      setScheduleName(event.target.value as JornadaNombre)
+                    }
+                  >
+                    <option value="mañana">Mañana</option>
+                    <option value="tarde">Tarde</option>
+                    <option value="única">Única</option>
+                    <option value="nocturna">Nocturna</option>
+                    <option value="sabatina">Sabatina</option>
+                  </select>
                 </Field>
                 <Field label="Código">
                   <AutoCodeInput

@@ -9,7 +9,33 @@ import {
   Matches,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
+const JORNADA_NOMBRES = [
+  'mañana',
+  'tarde',
+  'única',
+  'nocturna',
+  'sabatina',
+] as const;
+
+function normalizeJornadaNombre(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+
+  const key = value
+    .trim()
+    .toLocaleLowerCase('es-CO')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+  const names: Record<string, (typeof JORNADA_NOMBRES)[number]> = {
+    manana: 'mañana',
+    tarde: 'tarde',
+    unica: 'única',
+    nocturna: 'nocturna',
+    sabatina: 'sabatina',
+  };
+  return names[key] ?? value.trim().toLocaleLowerCase('es-CO');
+}
 
 export class CrearAreaConocimientoDto {
   @ApiProperty()
@@ -90,8 +116,9 @@ export class CrearJornadaDto {
   @IsString()
   codigo!: string;
 
-  @ApiProperty()
-  @IsString()
+  @ApiProperty({ enum: JORNADA_NOMBRES })
+  @Transform(({ value }) => normalizeJornadaNombre(value))
+  @IsIn(JORNADA_NOMBRES)
   nombre!: string;
 
   @ApiPropertyOptional({ example: '07:00' })

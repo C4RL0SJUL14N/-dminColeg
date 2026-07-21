@@ -157,16 +157,33 @@ export class AcademicStructureService {
 
   async createJornada(institucionId: string, dto: CrearJornadaDto) {
     await this.findInstitucionById(institucionId);
-    const jornada = await this.jornadasRepository.save(
-      this.jornadasRepository.create({
-        institucionId,
-        codigo: dto.codigo,
-        nombre: dto.nombre,
-        horaInicio: dto.horaInicio ?? null,
-        horaFin: dto.horaFin ?? null,
-        activo: true,
-      }),
-    );
+    let jornada: Jornada;
+    try {
+      jornada = await this.jornadasRepository.save(
+        this.jornadasRepository.create({
+          institucionId,
+          codigo: dto.codigo,
+          nombre: dto.nombre,
+          horaInicio: dto.horaInicio ?? null,
+          horaFin: dto.horaFin ?? null,
+          activo: true,
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23505'
+      ) {
+        const constraint = (error.driverError as { constraint?: string })
+          .constraint;
+        throw new ConflictException(
+          constraint === 'uq_jornadas_nombre'
+            ? 'Ya existe esa jornada en la institución'
+            : 'Ya existe una jornada con ese código',
+        );
+      }
+      throw error;
+    }
     setAuditEntityId(jornada.id);
     setAuditAfterState(jornada);
     return jornada;
