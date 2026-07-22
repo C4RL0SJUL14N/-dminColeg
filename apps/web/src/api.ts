@@ -76,19 +76,10 @@ export interface EscalaValoracionResponse {
   niveles: NivelEscalaResponse[];
 }
 
-export interface AreaConocimientoResponse {
-  id: string;
-  codigo: string;
-  nombre: string;
-  orden: number;
-  activo: boolean;
-}
-
 export interface AsignaturaResponse {
   id: string;
   codigo: string;
   nombre: string;
-  areaConocimientoId: string;
   activo: boolean;
 }
 
@@ -470,28 +461,6 @@ export function eliminarEscalaValoracion(
   );
 }
 
-export function getAreasConocimiento(
-  institucionId: string,
-  accessToken: string,
-) {
-  return authenticatedRequest<AreaConocimientoResponse[]>(
-    `/instituciones/${institucionId}/areas-conocimiento`,
-    accessToken,
-  );
-}
-
-export function crearAreaConocimiento(
-  institucionId: string,
-  input: { codigo: string; nombre: string; orden: number },
-  accessToken: string,
-) {
-  return authenticatedRequest<AreaConocimientoResponse>(
-    `/instituciones/${institucionId}/areas-conocimiento`,
-    accessToken,
-    { method: "POST", body: JSON.stringify(input) },
-  );
-}
-
 export function getAsignaturas(institucionId: string, accessToken: string) {
   return authenticatedRequest<AsignaturaResponse[]>(
     `/instituciones/${institucionId}/asignaturas`,
@@ -501,7 +470,7 @@ export function getAsignaturas(institucionId: string, accessToken: string) {
 
 export function crearAsignatura(
   institucionId: string,
-  input: { codigo: string; nombre: string; areaConocimientoId: string },
+  input: { codigo: string; nombre: string },
   accessToken: string,
 ) {
   return authenticatedRequest<AsignaturaResponse>(

@@ -7,7 +7,6 @@ import {
   Check,
   Clock3,
   GraduationCap,
-  Layers3,
   Plus,
   School,
   Sparkles,
@@ -15,15 +14,12 @@ import {
 } from "lucide-react";
 import {
   AnioLectivoResponse,
-  AreaConocimientoResponse,
   AsignaturaResponse,
-  crearAreaConocimiento,
   crearAsignatura,
   crearGrado,
   crearGrupo,
   crearJornada,
   getAniosLectivos,
-  getAreasConocimiento,
   getAsignaturas,
   getGrados,
   getGrupos,
@@ -39,8 +35,7 @@ import {
   SedeResponse,
 } from "./api";
 
-type AcademicSection =
-  "areas" | "asignaturas" | "grados" | "jornadas" | "grupos";
+type AcademicSection = "asignaturas" | "grados" | "jornadas" | "grupos";
 
 interface Props {
   accessToken: string;
@@ -57,12 +52,11 @@ export function AcademicStructurePage({
   const [institutionId, setInstitutionId] = useState(
     preferredInstitutionId ?? "",
   );
-  const [section, setSection] = useState<AcademicSection>("areas");
+  const [section, setSection] = useState<AcademicSection>("asignaturas");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [areas, setAreas] = useState<AreaConocimientoResponse[]>([]);
   const [subjects, setSubjects] = useState<AsignaturaResponse[]>([]);
   const [grades, setGrades] = useState<GradoResponse[]>([]);
   const [schedules, setSchedules] = useState<JornadaResponse[]>([]);
@@ -70,12 +64,8 @@ export function AcademicStructurePage({
   const [campuses, setCampuses] = useState<SedeResponse[]>([]);
   const [years, setYears] = useState<AnioLectivoResponse[]>([]);
 
-  const [areaName, setAreaName] = useState("");
-  const [areaCode, setAreaCode] = useState("");
-  const [areaOrder, setAreaOrder] = useState("1");
   const [subjectName, setSubjectName] = useState("");
   const [subjectCode, setSubjectCode] = useState("");
-  const [subjectAreaId, setSubjectAreaId] = useState("");
   const [gradeName, setGradeName] = useState("");
   const [gradeCode, setGradeCode] = useState("");
   const [gradeShortName, setGradeShortName] = useState("");
@@ -117,7 +107,6 @@ export function AcademicStructurePage({
     setLoading(true);
     setError("");
     Promise.all([
-      getAreasConocimiento(institutionId, accessToken),
       getAsignaturas(institutionId, accessToken),
       getGrados(institutionId, accessToken),
       getJornadas(institutionId, accessToken),
@@ -127,7 +116,6 @@ export function AcademicStructurePage({
     ])
       .then(
         ([
-          areaItems,
           subjectItems,
           gradeItems,
           scheduleItems,
@@ -136,14 +124,12 @@ export function AcademicStructurePage({
           yearItems,
         ]) => {
           if (!active) return;
-          setAreas(areaItems);
           setSubjects(subjectItems);
           setGrades(gradeItems);
           setSchedules(scheduleItems);
           setGroups(groupItems);
           setCampuses(campusItems.filter((item) => item.activo));
           setYears(yearItems.filter((item) => item.estado === "activo"));
-          setSubjectAreaId(areaItems[0]?.id ?? "");
           setGroupCampusId(campusItems.find((item) => item.activo)?.id ?? "");
           setGroupYearId(
             yearItems.find((item) => item.estado === "activo")?.id ?? "",
@@ -165,12 +151,6 @@ export function AcademicStructurePage({
     (item) => item.id === institutionId,
   );
   const tabs = [
-    {
-      id: "areas" as const,
-      label: "Áreas",
-      icon: Layers3,
-      count: areas.length,
-    },
     {
       id: "asignaturas" as const,
       label: "Asignaturas",
@@ -197,10 +177,6 @@ export function AcademicStructurePage({
     },
   ];
 
-  const areaById = useMemo(
-    () => new Map(areas.map((item) => [item.id, item.nombre])),
-    [areas],
-  );
   const campusById = useMemo(
     () => new Map(campuses.map((item) => [item.id, item.nombre])),
     [campuses],
@@ -222,30 +198,6 @@ export function AcademicStructurePage({
     return true;
   }
 
-  async function submitArea(event: FormEvent) {
-    event.preventDefault();
-    if (!ensureUniqueCode(areaCode, areas)) return;
-    await runSave(async () => {
-      const created = await crearAreaConocimiento(
-        institutionId,
-        {
-          codigo: areaCode.trim(),
-          nombre: areaName.trim(),
-          orden: Number(areaOrder),
-        },
-        accessToken,
-      );
-      setAreas((current) =>
-        [...current, created].sort((a, b) => a.orden - b.orden),
-      );
-      setAreaName("");
-      setAreaCode("");
-      setAreaOrder(String(areas.length + 2));
-      setSubjectAreaId((current) => current || created.id);
-      onToast("Área de conocimiento creada");
-    });
-  }
-
   async function submitSubject(event: FormEvent) {
     event.preventDefault();
     if (!ensureUniqueCode(subjectCode, subjects)) return;
@@ -255,7 +207,6 @@ export function AcademicStructurePage({
         {
           codigo: subjectCode.trim(),
           nombre: subjectName.trim(),
-          areaConocimientoId: subjectAreaId,
         },
         accessToken,
       );
@@ -461,17 +412,6 @@ export function AcademicStructurePage({
                 {tabs.find((tab) => tab.id === section)?.count}
               </span>
             </header>
-            {section === "areas" && (
-              <AcademicList
-                empty="Aún no hay áreas de conocimiento."
-                items={areas.map((item) => ({
-                  id: item.id,
-                  title: item.nombre,
-                  code: item.codigo,
-                  detail: `Orden ${item.orden}`,
-                }))}
-              />
-            )}
             {section === "asignaturas" && (
               <AcademicList
                 empty="Aún no hay asignaturas."
@@ -479,9 +419,7 @@ export function AcademicStructurePage({
                   id: item.id,
                   title: item.nombre,
                   code: item.codigo,
-                  detail:
-                    areaById.get(item.areaConocimientoId) ??
-                    "Área no disponible",
+                  detail: item.activo ? "Activa" : "Inactiva",
                 }))}
               />
             )}
@@ -524,49 +462,12 @@ export function AcademicStructurePage({
           </section>
 
           <section className="panel academic-form-panel">
-            {section === "areas" && (
-              <AcademicForm
-                title="Nueva área"
-                description="Agrupa asignaturas relacionadas."
-                onSubmit={submitArea}
-                saving={saving}
-              >
-                <Field label="Nombre">
-                  <input
-                    value={areaName}
-                    onChange={(event) => setAreaName(event.target.value)}
-                    placeholder="Ej. Ciencias naturales"
-                    minLength={3}
-                    required
-                  />
-                </Field>
-                <Field label="Código">
-                  <AutoCodeInput
-                    value={areaCode}
-                    onChange={setAreaCode}
-                    source={areaName}
-                    fallback="AREA"
-                  />
-                </Field>
-                <Field label="Orden">
-                  <input
-                    type="number"
-                    min="0"
-                    value={areaOrder}
-                    onChange={(event) => setAreaOrder(event.target.value)}
-                    required
-                  />
-                </Field>
-              </AcademicForm>
-            )}
             {section === "asignaturas" && (
               <AcademicForm
                 title="Nueva asignatura"
-                description="Vincúlala con un área existente."
+                description="Regístrala directamente en la institución."
                 onSubmit={submitSubject}
                 saving={saving}
-                blocked={!areas.length}
-                blockedText="Primero debes crear un área de conocimiento."
               >
                 <Field label="Nombre">
                   <input
@@ -584,19 +485,6 @@ export function AcademicStructurePage({
                     source={subjectName}
                     fallback="ASIG"
                   />
-                </Field>
-                <Field label="Área">
-                  <select
-                    value={subjectAreaId}
-                    onChange={(event) => setSubjectAreaId(event.target.value)}
-                    required
-                  >
-                    {areas.map((item) => (
-                      <option value={item.id} key={item.id}>
-                        {item.nombre}
-                      </option>
-                    ))}
-                  </select>
                 </Field>
               </AcademicForm>
             )}

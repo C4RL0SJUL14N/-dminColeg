@@ -3424,7 +3424,7 @@ function PlaceholderPage({ type }: { type: "personal" | "academico" }) {
       <h1>{isStaff ? "Personal institucional" : "Estructura académica"}</h1>
       <p>
         {isStaff
-          ? "Docentes, administrativos, directivos, sedes y áreas estarán disponibles en esta vista."
+          ? "Docentes, administrativos, directivos y sedes estarán disponibles en esta vista."
           : "Años lectivos, grados, grupos, asignaturas y cargas docentes estarán disponibles aquí."}
       </p>
       <button className="button button--primary">Diseñar esta vista</button>

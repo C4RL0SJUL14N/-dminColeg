@@ -10,11 +10,9 @@ import { setAuditAfterState, setAuditEntityId } from "@libs/audit";
 import { JwtPayload } from "@libs/common";
 import {
   Administrativo,
-  AreaConocimiento,
   DirectorGrupo,
   DirectivoDocente,
   Docente,
-  DocenteAreaConocimiento,
   DocenteSede,
   Grupo,
   Institucion,
@@ -24,7 +22,6 @@ import {
 } from "@libs/database";
 import { DataSource, IsNull, QueryFailedError, Repository } from "typeorm";
 import {
-  AsignarAreaDocenteDto,
   AsignarDirectorGrupoDto,
   AsignarSedeDocenteDto,
   CrearDocenteDto,
@@ -95,21 +92,17 @@ export class StaffService {
     if (!docente) throw new NotFoundException("Docente no encontrado");
     this.assertInstitution(docente.institucionId, user);
 
-    const [sedes, areas, titulos] = await Promise.all([
+    const [sedes, titulos] = await Promise.all([
       this.dataSource.getRepository(DocenteSede).find({
         where: { docenteId, activo: true },
         relations: { sede: true },
-      }),
-      this.dataSource.getRepository(DocenteAreaConocimiento).find({
-        where: { docenteId },
-        relations: { areaConocimiento: true },
       }),
       this.dataSource.getRepository(TituloAcademicoDocente).find({
         where: { docenteId },
         order: { esTituloPrincipal: "DESC", anioObtencion: "DESC" },
       }),
     ]);
-    return { ...docente, sedes, areas, titulos };
+    return { ...docente, sedes, titulos };
   }
 
   async assignSede(
@@ -160,39 +153,6 @@ export class StaffService {
       return asignacion;
     } catch (error) {
       this.unique(error, "El docente ya tiene una sede principal activa");
-      throw error;
-    }
-  }
-
-  async assignArea(
-    docenteId: string,
-    dto: AsignarAreaDocenteDto,
-    user: JwtPayload,
-  ) {
-    try {
-      const asignacion = await this.dataSource.transaction(async (manager) => {
-        const docente = await this.findActiveTeacher(manager, docenteId, user);
-        const area = await manager.findOneBy(AreaConocimiento, {
-          id: dto.areaConocimientoId,
-          institucionId: docente.institucionId,
-          activo: true,
-        });
-        if (!area) {
-          throw new BadRequestException(
-            "El area no pertenece a la institucion del docente",
-          );
-        }
-        return manager.save(
-          manager.create(DocenteAreaConocimiento, {
-            docenteId,
-            areaConocimientoId: dto.areaConocimientoId,
-          }),
-        );
-      });
-      this.audit(asignacion);
-      return asignacion;
-    } catch (error) {
-      this.unique(error, "El area ya esta asignada al docente");
       throw error;
     }
   }

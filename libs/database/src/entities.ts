@@ -591,24 +591,6 @@ export class NivelEscalaValoracion extends BaseUuidEntity {
   escala!: EscalaValoracion;
 }
 
-@Entity({ name: "areas_conocimiento" })
-export class AreaConocimiento extends BaseUuidEntity {
-  @Column({ name: "institucion_id", type: "uuid" })
-  institucionId!: string;
-
-  @Column({ unique: true })
-  codigo!: string;
-
-  @Column()
-  nombre!: string;
-
-  @Column({ default: 0 })
-  orden!: number;
-
-  @Column({ default: true })
-  activo!: boolean;
-}
-
 @Entity({ name: "asignaturas" })
 export class Asignatura extends BaseUuidEntity {
   @Column({ unique: true })
@@ -617,18 +599,11 @@ export class Asignatura extends BaseUuidEntity {
   @Column({ name: "institucion_id", type: "uuid" })
   institucionId!: string;
 
-  @Column({ name: "area_conocimiento_id", type: "uuid" })
-  areaConocimientoId!: string;
-
   @Column()
   nombre!: string;
 
   @Column({ default: true })
   activo!: boolean;
-
-  @ManyToOne(() => AreaConocimiento)
-  @JoinColumn({ name: "area_conocimiento_id" })
-  areaConocimiento!: AreaConocimiento;
 }
 
 @Entity({ name: "grados" })
@@ -811,23 +786,6 @@ export class DocenteSede extends BaseUuidEntity {
   @ManyToOne(() => Sede)
   @JoinColumn({ name: "sede_id" })
   sede!: Sede;
-}
-
-@Entity({ name: "docentes_areas_conocimiento" })
-export class DocenteAreaConocimiento extends BaseUuidEntity {
-  @Column({ name: "docente_id", type: "uuid" })
-  docenteId!: string;
-
-  @Column({ name: "area_conocimiento_id", type: "uuid" })
-  areaConocimientoId!: string;
-
-  @ManyToOne(() => Docente)
-  @JoinColumn({ name: "docente_id" })
-  docente!: Docente;
-
-  @ManyToOne(() => AreaConocimiento)
-  @JoinColumn({ name: "area_conocimiento_id" })
-  areaConocimiento!: AreaConocimiento;
 }
 
 @Entity({ name: "titulos_academicos_docente" })
@@ -1349,13 +1307,11 @@ export const DATABASE_ENTITIES = [
   Acudiente,
   Administrativo,
   AnioLectivo,
-  AreaConocimiento,
   AsignacionEstudianteGrupo,
   Asignatura,
   CargaAcademicaDocente,
   ConfiguracionInstitucion,
   Docente,
-  DocenteAreaConocimiento,
   DocenteSede,
   DirectorGrupo,
   DirectivoDocente,

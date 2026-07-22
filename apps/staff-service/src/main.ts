@@ -8,7 +8,7 @@ async function bootstrap() {
   configureAuditApplication(app);
   configureApplication(app, {
     appName: "Staff Service",
-    appDescription: "Docentes, sedes, areas, titulos y directores de grupo",
+    appDescription: "Docentes, sedes, titulos y directores de grupo",
   });
   await app.listen(process.env.STAFF_SERVICE_PORT ?? 3007);
 }

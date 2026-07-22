@@ -34,12 +34,6 @@ export class AsignarSedeDocenteDto {
   esPrincipal?: boolean;
 }
 
-export class AsignarAreaDocenteDto {
-  @ApiProperty()
-  @IsUUID()
-  areaConocimientoId!: string;
-}
-
 export class CrearTituloDocenteDto {
   @ApiProperty()
   @IsString()

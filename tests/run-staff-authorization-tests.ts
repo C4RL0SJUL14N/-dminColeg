@@ -57,7 +57,6 @@ async function main() {
   for (const handler of [
     controller.createDocente,
     controller.assignSede,
-    controller.assignArea,
     controller.createTitulo,
     controller.assignDirector,
     controller.createAdministrativo,

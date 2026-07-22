@@ -4,14 +4,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, QueryFailedError, Repository } from 'typeorm';
-import { setAuditAfterState, setAuditEntityId } from '@libs/audit';
-import { JwtPayload } from '@libs/common';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { IsNull, QueryFailedError, Repository } from "typeorm";
+import { setAuditAfterState, setAuditEntityId } from "@libs/audit";
+import { JwtPayload } from "@libs/common";
 import {
   AnioLectivo,
-  AreaConocimiento,
   Asignatura,
   CargaAcademicaDocente,
   Docente,
@@ -21,16 +20,15 @@ import {
   Jornada,
   PlanEstudioGrado,
   Sede,
-} from '@libs/database';
+} from "@libs/database";
 import {
-  CrearAreaConocimientoDto,
   CrearAsignaturaDto,
   CrearCargaAcademicaDocenteDto,
   CrearGradoDto,
   CrearGrupoDto,
   CrearJornadaDto,
   CrearPlanEstudioGradoDto,
-} from './dto';
+} from "./dto";
 
 @Injectable()
 export class AcademicStructureService {
@@ -41,8 +39,6 @@ export class AcademicStructureService {
     private readonly sedesRepository: Repository<Sede>,
     @InjectRepository(AnioLectivo)
     private readonly aniosLectivosRepository: Repository<AnioLectivo>,
-    @InjectRepository(AreaConocimiento)
-    private readonly areasRepository: Repository<AreaConocimiento>,
     @InjectRepository(Asignatura)
     private readonly asignaturasRepository: Repository<Asignatura>,
     @InjectRepository(Grado)
@@ -59,39 +55,11 @@ export class AcademicStructureService {
     private readonly cargasRepository: Repository<CargaAcademicaDocente>,
   ) {}
 
-  async createAreaConocimiento(
-    institucionId: string,
-    dto: CrearAreaConocimientoDto,
-  ) {
-    await this.findInstitucionById(institucionId);
-    const area = await this.areasRepository.save(
-      this.areasRepository.create({
-        institucionId,
-        codigo: dto.codigo,
-        nombre: dto.nombre,
-        orden: dto.orden ?? 0,
-        activo: true,
-      }),
-    );
-    setAuditEntityId(area.id);
-    setAuditAfterState(area);
-    return area;
-  }
-
-  findAreasConocimiento(institucionId: string) {
-    return this.areasRepository.find({
-      where: { institucionId },
-      order: { orden: 'ASC', nombre: 'ASC' },
-    });
-  }
-
   async createAsignatura(institucionId: string, dto: CrearAsignaturaDto) {
     await this.findInstitucionById(institucionId);
-    await this.findAreaById(dto.areaConocimientoId, institucionId);
     const asignatura = await this.asignaturasRepository.save(
       this.asignaturasRepository.create({
         institucionId,
-        areaConocimientoId: dto.areaConocimientoId,
         codigo: dto.codigo,
         nombre: dto.nombre,
         activo: true,
@@ -105,7 +73,7 @@ export class AcademicStructureService {
   findAsignaturas(institucionId: string) {
     return this.asignaturasRepository.find({
       where: { institucionId },
-      order: { nombre: 'ASC' },
+      order: { nombre: "ASC" },
     });
   }
 
@@ -129,16 +97,16 @@ export class AcademicStructureService {
     } catch (error) {
       if (
         error instanceof QueryFailedError &&
-        (error.driverError as { code?: string }).code === '23505'
+        (error.driverError as { code?: string }).code === "23505"
       ) {
         const constraint = (error.driverError as { constraint?: string })
           .constraint;
         const message =
-          constraint === 'uq_grados_nombre'
-            ? 'Ya existe un grado con ese nombre en la institución'
-            : constraint === 'uq_grados_orden'
-              ? 'Ya existe un grado con ese orden en la institución'
-              : 'Ya existe un grado con ese código';
+          constraint === "uq_grados_nombre"
+            ? "Ya existe un grado con ese nombre en la institución"
+            : constraint === "uq_grados_orden"
+              ? "Ya existe un grado con ese orden en la institución"
+              : "Ya existe un grado con ese código";
         throw new ConflictException(message);
       }
       throw error;
@@ -151,7 +119,7 @@ export class AcademicStructureService {
   findGrados(institucionId: string) {
     return this.gradosRepository.find({
       where: { institucionId, eliminadoEn: IsNull() },
-      order: { orden: 'ASC', nombre: 'ASC' },
+      order: { orden: "ASC", nombre: "ASC" },
     });
   }
 
@@ -172,14 +140,14 @@ export class AcademicStructureService {
     } catch (error) {
       if (
         error instanceof QueryFailedError &&
-        (error.driverError as { code?: string }).code === '23505'
+        (error.driverError as { code?: string }).code === "23505"
       ) {
         const constraint = (error.driverError as { constraint?: string })
           .constraint;
         throw new ConflictException(
-          constraint === 'uq_jornadas_nombre'
-            ? 'Ya existe esa jornada en la institución'
-            : 'Ya existe una jornada con ese código',
+          constraint === "uq_jornadas_nombre"
+            ? "Ya existe esa jornada en la institución"
+            : "Ya existe una jornada con ese código",
         );
       }
       throw error;
@@ -192,7 +160,7 @@ export class AcademicStructureService {
   findJornadas(institucionId: string) {
     return this.jornadasRepository.find({
       where: { institucionId },
-      order: { nombre: 'ASC' },
+      order: { nombre: "ASC" },
     });
   }
 
@@ -225,7 +193,7 @@ export class AcademicStructureService {
   findGrupos(institucionId: string) {
     return this.gruposRepository.find({
       where: { institucionId, eliminadoEn: IsNull() },
-      order: { nombre: 'ASC' },
+      order: { nombre: "ASC" },
     });
   }
 
@@ -256,7 +224,7 @@ export class AcademicStructureService {
     await this.findAnioLectivoById(anioLectivoId, currentUser);
     return this.planesRepository.find({
       where: { anioLectivoId },
-      order: { gradoId: 'ASC', asignaturaId: 'ASC' },
+      order: { gradoId: "ASC", asignaturaId: "ASC" },
     });
   }
 
@@ -274,13 +242,13 @@ export class AcademicStructureService {
       plan.gradoId !== grupo.gradoId
     ) {
       throw new BadRequestException(
-        'El plan de estudio no corresponde al anio lectivo y grado del grupo',
+        "El plan de estudio no corresponde al anio lectivo y grado del grupo",
       );
     }
 
     if (docente.institucionId !== grupo.institucionId) {
       throw new BadRequestException(
-        'El docente no pertenece a la institucion del grupo',
+        "El docente no pertenece a la institucion del grupo",
       );
     }
 
@@ -304,14 +272,14 @@ export class AcademicStructureService {
     await this.findGrupoById(grupoId, currentUser);
     return this.cargasRepository.find({
       where: { grupoId, eliminadoEn: IsNull() },
-      order: { codigo: 'ASC' },
+      order: { codigo: "ASC" },
     });
   }
 
   private async findInstitucionById(id: string) {
     const institucion = await this.institucionesRepository.findOneBy({ id });
     if (!institucion) {
-      throw new NotFoundException('Institucion no encontrada');
+      throw new NotFoundException("Institucion no encontrada");
     }
 
     return institucion;
@@ -320,13 +288,13 @@ export class AcademicStructureService {
   private async findSedeById(id: string, institucionId: string) {
     const sede = await this.sedesRepository.findOneBy({ id });
     if (!sede) {
-      throw new NotFoundException('Sede no encontrada');
+      throw new NotFoundException("Sede no encontrada");
     }
 
     this.assertSameInstitution(
       sede.institucionId,
       institucionId,
-      'La sede no pertenece a la institucion',
+      "La sede no pertenece a la institucion",
     );
     return sede;
   }
@@ -338,44 +306,30 @@ export class AcademicStructureService {
   ) {
     const anio = await this.aniosLectivosRepository.findOneBy({ id });
     if (!anio) {
-      throw new NotFoundException('Anio lectivo no encontrado');
+      throw new NotFoundException("Anio lectivo no encontrado");
     }
 
     if (expectedInstitutionId) {
       this.assertSameInstitution(
         anio.institucionId,
         expectedInstitutionId,
-        'El anio lectivo no pertenece a la institucion',
+        "El anio lectivo no pertenece a la institucion",
       );
     }
     this.assertInstitutionAccess(anio.institucionId, currentUser);
     return anio;
   }
 
-  private async findAreaById(id: string, institucionId: string) {
-    const area = await this.areasRepository.findOneBy({ id });
-    if (!area) {
-      throw new NotFoundException('Area de conocimiento no encontrada');
-    }
-
-    this.assertSameInstitution(
-      area.institucionId,
-      institucionId,
-      'El area de conocimiento no pertenece a la institucion',
-    );
-    return area;
-  }
-
   private async findAsignaturaById(id: string, institucionId: string) {
     const asignatura = await this.asignaturasRepository.findOneBy({ id });
     if (!asignatura) {
-      throw new NotFoundException('Asignatura no encontrada');
+      throw new NotFoundException("Asignatura no encontrada");
     }
 
     this.assertSameInstitution(
       asignatura.institucionId,
       institucionId,
-      'La asignatura no pertenece a la institucion',
+      "La asignatura no pertenece a la institucion",
     );
     return asignatura;
   }
@@ -383,13 +337,13 @@ export class AcademicStructureService {
   private async findGradoById(id: string, institucionId: string) {
     const grado = await this.gradosRepository.findOneBy({ id });
     if (!grado) {
-      throw new NotFoundException('Grado no encontrado');
+      throw new NotFoundException("Grado no encontrado");
     }
 
     this.assertSameInstitution(
       grado.institucionId,
       institucionId,
-      'El grado no pertenece a la institucion',
+      "El grado no pertenece a la institucion",
     );
     return grado;
   }
@@ -397,13 +351,13 @@ export class AcademicStructureService {
   private async findJornadaById(id: string, institucionId: string) {
     const jornada = await this.jornadasRepository.findOneBy({ id });
     if (!jornada) {
-      throw new NotFoundException('Jornada no encontrada');
+      throw new NotFoundException("Jornada no encontrada");
     }
 
     this.assertSameInstitution(
       jornada.institucionId,
       institucionId,
-      'La jornada no pertenece a la institucion',
+      "La jornada no pertenece a la institucion",
     );
     return jornada;
   }
@@ -411,7 +365,7 @@ export class AcademicStructureService {
   private async findGrupoById(id: string, currentUser: JwtPayload) {
     const grupo = await this.gruposRepository.findOneBy({ id });
     if (!grupo) {
-      throw new NotFoundException('Grupo no encontrado');
+      throw new NotFoundException("Grupo no encontrado");
     }
 
     this.assertInstitutionAccess(grupo.institucionId, currentUser);
@@ -421,7 +375,7 @@ export class AcademicStructureService {
   private async findPlanById(id: string) {
     const plan = await this.planesRepository.findOneBy({ id });
     if (!plan) {
-      throw new NotFoundException('Plan de estudio no encontrado');
+      throw new NotFoundException("Plan de estudio no encontrado");
     }
 
     return plan;
@@ -430,7 +384,7 @@ export class AcademicStructureService {
   private async findDocenteById(id: string) {
     const docente = await this.docentesRepository.findOneBy({ id });
     if (!docente) {
-      throw new NotFoundException('Docente no encontrado');
+      throw new NotFoundException("Docente no encontrado");
     }
 
     return docente;
@@ -459,7 +413,7 @@ export class AcademicStructureService {
       currentUser.institucionId !== institucionId
     ) {
       throw new ForbiddenException(
-        'No puede operar fuera de la institucion asociada a su usuario',
+        "No puede operar fuera de la institucion asociada a su usuario",
       );
     }
   }

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsBoolean,
   IsIn,
@@ -8,60 +8,39 @@ import {
   IsUUID,
   Matches,
   Min,
-} from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+} from "class-validator";
+import { Transform, Type } from "class-transformer";
 
 const JORNADA_NOMBRES = [
-  'mañana',
-  'tarde',
-  'única',
-  'nocturna',
-  'sabatina',
+  "mañana",
+  "tarde",
+  "única",
+  "nocturna",
+  "sabatina",
 ] as const;
 
 function normalizeJornadaNombre(value: unknown): unknown {
-  if (typeof value !== 'string') return value;
+  if (typeof value !== "string") return value;
 
   const key = value
     .trim()
-    .toLocaleLowerCase('es-CO')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '');
+    .toLocaleLowerCase("es-CO")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
   const names: Record<string, (typeof JORNADA_NOMBRES)[number]> = {
-    manana: 'mañana',
-    tarde: 'tarde',
-    unica: 'única',
-    nocturna: 'nocturna',
-    sabatina: 'sabatina',
+    manana: "mañana",
+    tarde: "tarde",
+    unica: "única",
+    nocturna: "nocturna",
+    sabatina: "sabatina",
   };
-  return names[key] ?? value.trim().toLocaleLowerCase('es-CO');
-}
-
-export class CrearAreaConocimientoDto {
-  @ApiProperty()
-  @IsString()
-  codigo!: string;
-
-  @ApiProperty()
-  @IsString()
-  nombre!: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  orden?: number;
+  return names[key] ?? value.trim().toLocaleLowerCase("es-CO");
 }
 
 export class CrearAsignaturaDto {
   @ApiProperty()
   @IsString()
   codigo!: string;
-
-  @ApiProperty()
-  @IsUUID()
-  areaConocimientoId!: string;
 
   @ApiProperty()
   @IsString()
@@ -84,23 +63,23 @@ export class CrearGradoDto {
 
   @ApiProperty({
     enum: [
-      'preescolar',
-      'primaria',
-      'secundaria',
-      'media',
-      'tecnica',
-      'adultos',
-      'otro',
+      "preescolar",
+      "primaria",
+      "secundaria",
+      "media",
+      "tecnica",
+      "adultos",
+      "otro",
     ],
   })
   @IsIn([
-    'preescolar',
-    'primaria',
-    'secundaria',
-    'media',
-    'tecnica',
-    'adultos',
-    'otro',
+    "preescolar",
+    "primaria",
+    "secundaria",
+    "media",
+    "tecnica",
+    "adultos",
+    "otro",
   ])
   nivelEducativo!: string;
 
@@ -121,12 +100,12 @@ export class CrearJornadaDto {
   @IsIn(JORNADA_NOMBRES)
   nombre!: string;
 
-  @ApiPropertyOptional({ example: '07:00' })
+  @ApiPropertyOptional({ example: "07:00" })
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
   horaInicio?: string;
 
-  @ApiPropertyOptional({ example: '13:00' })
+  @ApiPropertyOptional({ example: "13:00" })
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
   horaFin?: string;

@@ -1,8 +1,7 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
 import {
   AnioLectivo,
-  AreaConocimiento,
   Asignatura,
   CargaAcademicaDocente,
   Docente,
@@ -12,15 +11,14 @@ import {
   Jornada,
   PlanEstudioGrado,
   Sede,
-} from '@libs/database';
-import { AcademicStructureController } from './academic-structure.controller';
-import { AcademicStructureService } from './academic-structure.service';
+} from "@libs/database";
+import { AcademicStructureController } from "./academic-structure.controller";
+import { AcademicStructureService } from "./academic-structure.service";
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       AnioLectivo,
-      AreaConocimiento,
       Asignatura,
       CargaAcademicaDocente,
       Docente,

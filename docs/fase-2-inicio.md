@@ -6,7 +6,6 @@ Se inicio `academic-structure-service` sobre el esquema real existente en Supaba
 
 Tablas mapeadas en TypeORM:
 
-- `areas_conocimiento`
 - `asignaturas`
 - `grados`
 - `jornadas`
@@ -17,8 +16,6 @@ Tablas mapeadas en TypeORM:
 
 ## Endpoints Base
 
-- `POST /instituciones/:id/areas-conocimiento`
-- `GET /instituciones/:id/areas-conocimiento`
 - `POST /instituciones/:id/asignaturas`
 - `GET /instituciones/:id/asignaturas`
 - `POST /instituciones/:id/grados`
@@ -35,7 +32,7 @@ Tablas mapeadas en TypeORM:
 ## Validaciones Incluidas
 
 - sede, anio lectivo, grado y jornada deben pertenecer a la institucion del grupo
-- area de conocimiento y asignatura deben pertenecer a la institucion
+- la asignatura debe pertenecer a la institucion
 - plan de estudio debe corresponder al anio lectivo, grado y asignatura de la misma institucion
 - carga docente debe corresponder al mismo anio lectivo y grado del grupo
 - docente debe pertenecer a la institucion del grupo
@@ -132,7 +129,6 @@ existentes de Supabase:
 
 - `docentes`
 - `docentes_sedes`
-- `docentes_areas_conocimiento`
 - `titulos_academicos_docente`
 - `directores_grupo`
 - `administrativos`
@@ -144,7 +140,6 @@ Endpoints incorporados:
 - `GET /instituciones/:id/docentes`
 - `GET /docentes/:id`
 - `POST /docentes/:id/sedes`
-- `POST /docentes/:id/areas-conocimiento`
 - `POST /docentes/:id/titulos`
 - `POST /grupos/:id/director`
 - `GET /grupos/:id/director`
@@ -158,7 +153,7 @@ Endpoints incorporados:
 Reglas incluidas:
 
 - el docente se crea desde una persona activa y no puede repetirse en la institucion
-- sedes y areas deben pertenecer a la misma institucion del docente
+- las sedes deben pertenecer a la misma institucion del docente
 - solo puede existir una sede principal activa y un titulo principal por docente
 - el director debe ser un docente activo asignado a la sede del grupo
 - reemplazar director cierra atomicamente la asignacion anterior

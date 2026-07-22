@@ -18,7 +18,6 @@ import {
   ROLE_TEACHER_DIRECTOR,
 } from "@libs/common";
 import {
-  AsignarAreaDocenteDto,
   AsignarDirectorGrupoDto,
   AsignarSedeDocenteDto,
   CrearAdministrativoDto,
@@ -92,27 +91,6 @@ export class StaffController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.staffService.assignSede(docenteId, dto, user);
-  }
-
-  @Roles(ROLE_ADMIN_APP)
-  @Post("docentes/:id/areas-conocimiento")
-  @Audit({
-    servicio: "staff-service",
-    modulo: "staff",
-    entidad: "docente-area",
-    entidadIdParam: "id",
-    accion: "asignar-area",
-    tipoEvento: AUDIT_EVENT_TYPE.NEGOCIO,
-    severidad: AUDIT_SEVERITY.INFO,
-    capturarPayload: true,
-    capturarDespues: true,
-  })
-  assignArea(
-    @Param("id", new ParseUUIDPipe()) docenteId: string,
-    @Body() dto: AsignarAreaDocenteDto,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    return this.staffService.assignArea(docenteId, dto, user);
   }
 
   @Roles(ROLE_ADMIN_APP)
